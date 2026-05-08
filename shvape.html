@@ -1857,15 +1857,29 @@ const Bg = {
     ctx.fillStyle = 'rgba(255,235,150,0.7)';
     ctx.beginPath(); ctx.arc(CFG.W*0.78, 130, 50, 0, Math.PI*2); ctx.fill();
 
-    // === BG BLUR — depth-of-field so the play surface reads clearly ===
-    // Far + mid layers get a strong blur + desaturation. The player will see
-    // them as "out there", clearly distinct from the sharp foreground where
-    // jumpable obstacles live.
+    // === ATMOSPHERIC PERSPECTIVE (cheap depth, NOT ctx.filter) ===
+    // ctx.filter='blur(...)' is catastrophically slow on Canvas2D because
+    // it re-creates a backing surface per draw call. Replaced with two
+    // alpha tricks that cost ~zero:
+    //   1. far+mid drawn at globalAlpha 0.78 — dimmer = farther
+    //   2. After mid, a single semi-transparent sky-tinted gradient
+    //      "haze" rect over the upper area — atmospheric perspective
+    //   3. Foreground (entities, player) drawn AFTER, untouched, at
+    //      full alpha — pops crisply.
     ctx.save();
-    ctx.filter = 'blur(2.4px) saturate(0.55) brightness(0.92)';
+    ctx.globalAlpha = 0.78;
     for (const o of this.far) drawFar(o);
+    ctx.globalAlpha = 0.86;
     for (const o of this.mid) drawMid(o);
     ctx.restore();
+
+    // Single haze fillRect — cheaper than any per-object filter
+    const haze = ctx.createLinearGradient(0, 0, 0, CFG.GROUND_Y);
+    haze.addColorStop(0, 'rgba(190,210,225,0.35)');
+    haze.addColorStop(0.7, 'rgba(190,210,225,0.10)');
+    haze.addColorStop(1, 'rgba(190,210,225,0.0)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, 0, CFG.W, CFG.GROUND_Y);
 
     // Ground stays sharp — it's the play surface
     ctx.fillStyle = COLORS.ground;
@@ -1881,10 +1895,9 @@ const Bg = {
       ctx.moveTo(xx, CFG.GROUND_Y+4); ctx.lineTo(xx+4, CFG.GROUND_Y); ctx.lineTo(xx+8, CFG.GROUND_Y+4); ctx.fill();
     }
 
-    // Near layer — light blur so signs/NPCs are still readable but
-    // unmistakably "behind" the obstacle plane.
+    // Near layer at slightly reduced alpha — closer to fg but still "behind"
     ctx.save();
-    ctx.filter = 'blur(1.2px) saturate(0.78)';
+    ctx.globalAlpha = 0.94;
     for (const o of this.near) drawNear(o);
     ctx.restore();
   }
