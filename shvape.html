@@ -215,6 +215,50 @@ const Save = {
   },
 };
 
+// ===== INTRO CAPTION — personalizes the first few seconds of every run =====
+// Shows for 2.5 sec at PLAY-start: "MUTSCHELBACH · 8. Mai 2026 · BIN RUN
+// [Schwape-wince], 15." Re-armed each restart. Skipped on Act II direct
+// re-entries since those have their own cinematics.
+const IntroCaption = {
+  t: 0, active: false,
+  start(){ this.t = 0; this.active = true; },
+  update(dt){ if (this.active){ this.t += dt; if (this.t > 3.2) this.active = false; } },
+  formatDate(){
+    const months = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+    const d = new Date();
+    return `${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+  },
+  draw(){
+    if (!this.active) return;
+    // 0.0-0.4s: fade in. 0.4-2.6s: hold. 2.6-3.2s: fade out.
+    const t = this.t;
+    const a = t < 0.4 ? t/0.4 : (t > 2.6 ? Math.max(0,(3.2-t)/0.6) : 1);
+    ctx.save();
+    ctx.globalAlpha = a;
+    // Black bar across center
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(0, CFG.H/2 - 80, CFG.W, 160);
+    ctx.fillStyle = '#ffd633'; ctx.fillRect(0, CFG.H/2 - 82, CFG.W, 4);
+    ctx.fillStyle = '#ffd633'; ctx.fillRect(0, CFG.H/2 + 78, CFG.W, 4);
+    // Ortseingang line
+    ctx.fillStyle='#fff'; ctx.font='bold 14px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText('MUTSCHELBACH · ' + this.formatDate().toUpperCase(), CFG.W/2, CFG.H/2 - 30);
+    // Bin Run line — wincing surname inline
+    ctx.font='bold 28px Bangers, sans-serif';
+    ctx.fillStyle='#fff';
+    const left = 'BIN RUN  ';
+    ctx.textAlign='right';
+    ctx.fillText(left, CFG.W/2 - 28, CFG.H/2 + 8);
+    drawWincingSchwape(CFG.W/2 - 24, CFG.H/2 + 8, 22);
+    ctx.textAlign='left';
+    ctx.fillText('  · 15', CFG.W/2 + 70, CFG.H/2 + 8);
+    // Subline — Schulversager-style poetic credit
+    ctx.font='10px "Press Start 2P"'; ctx.fillStyle='#aaa'; ctx.textAlign='center';
+    ctx.fillText('Hauptschüler · KSC-Treu · Heimatkennzeichen: Württemberg', CFG.W/2, CFG.H/2 + 50);
+    ctx.restore();
+  }
+};
+
 // ===== DAILY MUTATIONS =====
 // Every calendar day rolls a different parodic modifier so the game feels
 // fresh across the week. Hash YYYYMMDD into one of these slots. Active
@@ -3665,7 +3709,9 @@ function updateEntities(dt){
       if (e.pickup){
         e.alive = false;
         if (e.type==='vape-pod'){
-          Vape.refill(50); Game.baseScore += 50;
+          // VAPE_TROCKEN mutation doubles refill on Pod pickups
+          const podMul = (typeof Mutation !== 'undefined' && Mutation.podMul) ? Mutation.podMul() : 1;
+          Vape.refill(50 * podMul); Game.baseScore += 50;
           comicBurst(e.x - Game.scrollX, e.y, 'POD!');
           Audio.itemFound(); sparkle(e.x - Game.scrollX, e.y);
           if (navigator.vibrate) navigator.vibrate(20);
@@ -3674,6 +3720,10 @@ function updateEntities(dt){
           if (e.flavor==='mystery'){ HUD.note('Mystery Geschmack — Steuerung invertiert!', '#ff66ff'); }
           else if (e.flavor==='bubblegum') HUD.note('Bubblegum — leichter Sprung', '#88c0e0');
           else if (e.flavor==='tabak') HUD.note('Tabak Klassik — Bonus', '#aaa');
+          // POD_LORD achievement (100 pods lifetime)
+          Save.data.podsLifetime = (Save.data.podsLifetime||0) + 1;
+          Save.save();
+          if (typeof Achv !== 'undefined' && Save.data.podsLifetime >= 100) Achv.unlock('POD_LORD');
         } else if (e.type==='energy'){
           Game.baseScore += 100;
           Player.invuln = Math.max(Player.invuln, 2);
@@ -3681,9 +3731,14 @@ function updateEntities(dt){
           Audio.pickup(); sparkle(e.x - Game.scrollX, e.y);
           Game.combo = Math.min(10, Game.combo+1); Game.comboTimer = 4;
         } else if (e.type==='pfand'){
-          Game.baseScore += 25;
+          // PFAND_TAG mutation doubles pfand value
+          const pfMul = (typeof Mutation !== 'undefined' && Mutation.pfandMul) ? Mutation.pfandMul() : 1;
+          Game.baseScore += 25 * pfMul;
           Audio.pickup(); sparkle(e.x - Game.scrollX, e.y);
           Game.combo = Math.min(10, Game.combo+1); Game.comboTimer = 4;
+          Save.data.pfandLifetime = (Save.data.pfandLifetime||0) + 1;
+          Save.save();
+          if (typeof Achv !== 'undefined' && Save.data.pfandLifetime >= 50) Achv.unlock('PFAND_MEISTER');
         }
       } else {
         // obstacle hit
@@ -7899,6 +7954,20 @@ const HUD = {
       ctx.fillStyle='#000'; ctx.font='6px "Press Start 2P"';
       ctx.textAlign='left'; ctx.fillText('Suchtberatung KA', 44, CFG.GROUND_Y+18);
     }
+    // KSC fixture pip — top-right under time/score, tiny scarf
+    if (Save.data.ksc && Save.data.ksc.last){
+      const kx = CFG.W - 220, ky = 60;
+      ctx.save();
+      ctx.fillStyle = '#000'; ctx.fillRect(kx-2, ky-2, 32, 22);
+      // KSC scarf rectangle
+      ctx.fillStyle = '#0072c6'; ctx.fillRect(kx, ky, 28, 18);
+      ctx.fillStyle = '#fff'; ctx.fillRect(kx, ky+8, 28, 2);
+      ctx.fillStyle = (Save.data.ksc.last === 'win') ? '#7fff7f' : (Save.data.ksc.last === 'loss') ? '#ff5050' : '#ffd633';
+      ctx.fillRect(kx+22, ky, 4, 18);
+      ctx.fillStyle = '#fff'; ctx.font='bold 6px "Press Start 2P"'; ctx.textAlign='left';
+      ctx.fillText('KSC', kx+2, ky+12);
+      ctx.restore();
+    }
     // Cassette HUD slot (top-right under abilities, picked up in Boss 10)
     if (Game.cassette){
       const cx = CFG.W - 180, cy = 60;
@@ -8028,6 +8097,45 @@ const DripUnlock = {
   }
 };
 
+// ===== HEADLINE TEMPLATES — for breaking-news death overlay =====
+// Keyed by transgression / insult id. The death screen pulls the top
+// reel entry and dresses it as a regional-news ticker. Templates are
+// chosen for absurdist deadpan, like genuine local-paper coverage.
+const HEADLINE_TEMPLATES = {
+  BABY_KAUFEN:           'Mutschelbacher Junge tauscht Säugling gegen €30 — Justizermittlungen.',
+  OMA_ROLLATOR_SKATE:    'Senioren-Rollator zweckentfremdet — leichte Verletzungen, viel Aufmerksamkeit.',
+  GRILLMEISTER_LIZENZ:   '"Gesundheitsamt"-Hochstapler erbeutet Bratwurst — Stadt prüft Akten.',
+  FRAU_HERTA_SOLAR:      'Buchsbaumhecke jetzt mit Solarpanel — Anwohnerin gibt zu, sie habe "Ja" gesagt.',
+  PFARRER_NFT:           'Pfarrer Kornblum lehnt Kirchen-NFT höflich ab — Vatikan zeigt Interesse.',
+  STREBER_HAUSAUFGABEN:  'Hausaufgaben-Subcontracting an Realschule entlarvt — Frau Müller schäumt.',
+  KIT_NAVIGATION:        'Tourist gibt €10 für falsche Wegbeschreibung zum Schloss — KIT distanziert sich.',
+  JOGGER_WETTRENNEN:     'Salomon-Jogger entgeistert — "Junger Mann erklärt sich zum Sieger".',
+  BÜRGERMEISTER_POSTER:  'Wahlplakat von Bürgermeister Beier ergänzt — bleibt drei Wochen hängen.',
+  KIND_FLEISCHKÄSE:      'Vier Jahre alt: Kind handelt Vape gegen Fleischkäs-Weckle — beide zufrieden.',
+  PRIESTER_HAUCH:        '"Heiliger Hauch" — neue Vape-Sorte sorgt für theologische Diskussionen.',
+  HABIBI_PFANDFLASCHEN:  'Späti-Streit um Pfandflaschen dauert 11 Minuten — Inhaber kassiert Stammkunden.',
+  POLIZEI_DISCOUNT:      'Karlsbader Polizei meldet Anbahnungsversuch eines "Vape-Discounts".',
+  JUSTIN_PHONE_PRANK:    'Bro-Monolog wird "permanent seltsamer", sagt eine anonyme Quelle.',
+  JUSTIN_BITCOIN:        'Realschüler hält 4-Minuten-Bitcoin-Vortrag — beide Parteien wachsen.',
+  CHANTAL_BLUMEN:        'Eigene Blumen zurückverkauft — Familie Hosseini lacht trotzdem.',
+  LEHRERIN_MLM:          'Lehrerin in Vape-MLM verwickelt — "Wer ist an der Spitze?" "Das Universum."',
+  KONTROLLEUR_SCREENSHOT:'KVV-Kontrolleur lässt 3-Wochen-altes Ticket gelten — "ehrenhaft".',
+  RUDOLF_PREMIUM:        'Vater-Sohn-"Premium-Bonding" gescheitert — Tagesschau lief.',
+  WALDBRONN_VOLVO:       'Volvo-Valet-Service in eigener Einfahrt — Versicherungsmakler informiert.',
+  PFAND_OMA_FRANCHISE:   'Pfand-Sammler-Oma als "Gebietsleiterin" geehrt — Seniorentreff jubelt.',
+  SCHÄFERHUND_VALET:     '"Aufsichts-Walking" parallel zum Halter — Schäferhund verwirrt.',
+  SHOP_WINDOW_SELFIE:    '30-Sekunden-Selbstgespräch im Schaufenster — Passanten lachen leise.',
+  SCHWOBA_TOURIST:       'Schwabe ohne Schwarzwald-Permit — €20 später ist er weiter ohne.',
+  BERLINER_SPÄTI:        'Berliner erfährt: Spätis existieren in Süddeutschland nicht.',
+  HAMBURGER_HARDTSEE:    'Hamburger zahlt €15 für "das Meer" — Schwarzwaldverein interveniert.',
+  PFÄLZER_SAUMAGEN:      'Saumagen-Familienpreis — Pfälzer kennt deine Tante.',
+  FRANKFURTER_BANKER:    'Banker diskutiert Hessen-Euro-Tausch 4 Minuten lang.',
+  MÜNCHNERIN_BREZEL:     '"Penny-Brezel-Tour" für €2 — Münchnerin hat Sohn in Karlsruhe.',
+  FRAU_HERTA_VS_CHANTAL: 'Mutschelbacher Junge verteidigt Hosseinis vor Frau Herta öffentlich.',
+  SCHWOBA_VS_CHANTAL:    'Junger Schwape kontert ignoranten Schwabe-Touristen — Anwohner applaudieren.',
+  INLINE_INSULT:         'Mutschelbacher Junge ruft Beleidigung quer über die Straße — Zeugen verwirrt.',
+};
+
 // ===== DEATH SYSTEM =====
 const Death = {
   spruch: '',
@@ -8045,6 +8153,19 @@ const Death = {
     // generate spruch
     this.spruch = `${choice(SPRUCH_SUBJ)} ${choice(SPRUCH_VERB)}`;
     this.comicSfx = choice(COMIC_SFX);
+    // BREAKING-NEWS headline — based on the run's top transgression.
+    // Empty if the player did nothing noteworthy.
+    this.headline = '';
+    this.headlineSource = '';
+    if (Game.highlightReel && Game.highlightReel.length){
+      const top = Game.highlightReel[0];
+      const sources = ['BNN.online', 'SWR Aktuell', 'BILD Karlsruhe', 'Mutschelbach Echo', 'badische-zeitung.de'];
+      this.headlineSource = sources[Math.floor(Math.random()*sources.length)];
+      this.headline = HEADLINE_TEMPLATES[top.id] || `Mutschelbacher Junge sorgt für Aufsehen — "${top.label}"`;
+    }
+    // Run-end mutation tag for the recap
+    this.mutationTag = (typeof Mutation !== 'undefined' && Mutation.current && Mutation.current.id !== 'NORMAL')
+      ? Mutation.current.name : '';
     // Run-end achievements: STILLE_MEISTER, KSC_TREU, AKHI_OG
     if (typeof Achv !== 'undefined' && Game.realT >= 60){
       if ((Save.data.insultsLifetime || 0) === Save._insultsAtRunStart && Game.realT >= 90){
@@ -8079,6 +8200,25 @@ const Death = {
   draw(){
     // dim
     ctx.fillStyle='rgba(0,0,0,0.78)'; ctx.fillRect(0,0,CFG.W,CFG.H);
+    // === BREAKING NEWS RIBBON — top of screen, only if a transgression
+    //     headline is available. Reads like a regional ticker. ===
+    if (this.headline){
+      const ry = 24, rh = 44;
+      ctx.fillStyle = '#cc1818'; ctx.fillRect(0, ry, CFG.W, rh);
+      ctx.fillStyle = '#000'; ctx.fillRect(0, ry-2, CFG.W, 2);
+      ctx.fillStyle = '#000'; ctx.fillRect(0, ry+rh, CFG.W, 2);
+      ctx.fillStyle = '#fff'; ctx.font='bold 12px "Press Start 2P"'; ctx.textAlign='left';
+      ctx.fillText('BREAKING — ' + this.headlineSource.toUpperCase(), 16, ry+18);
+      ctx.font='11px "Press Start 2P"'; ctx.fillStyle='#fff';
+      // wrap headline
+      const words = this.headline.split(' '); let line='', x=16;
+      ctx.textAlign='left';
+      // Single-line for simplicity; truncate to width
+      let single = this.headline;
+      while (ctx.measureText(single).width > CFG.W-32) single = single.slice(0,-1);
+      if (single !== this.headline) single = single.slice(0,-1) + '…';
+      ctx.fillText(single, 16, ry+38);
+    }
     // Comic SFX big
     ctx.save();
     ctx.translate(CFG.W/2, 180);
@@ -8152,6 +8292,11 @@ const Death = {
     ctx.fillStyle='#000'; ctx.fillRect(px, py, pw, 36);
     ctx.fillStyle='#ffd633'; ctx.font='bold 14px "Press Start 2P"'; ctx.textAlign='left';
     ctx.fillText('BIN RUN INC.', px+12, py+24);
+    // Mutation tag, top-right of the report band
+    if (this.mutationTag){
+      ctx.fillStyle = '#ff66ff'; ctx.font='9px "Press Start 2P"'; ctx.textAlign='right';
+      ctx.fillText('TAG: ' + this.mutationTag, px+pw-12, py+15);
+    }
     // quarter — based on lifetimePlayTime mod 4
     const q = (Math.floor((Save.data.lifetimePlayTime||0) / 1800) % 4) + 1;
     ctx.fillStyle='#fff'; ctx.font='9px "Press Start 2P"'; ctx.textAlign='right';
@@ -8407,6 +8552,7 @@ const Tutorial = {
     resetForNewRun();   // fresh state
     Game.state = 'PLAY';
     Game.titleSmashShown = false; // re-trigger the BAM!
+    if (typeof IntroCaption !== 'undefined') IntroCaption.start();
   },
   update(dt){
     this.t += dt;
@@ -8648,6 +8794,7 @@ function restartGame(){
   // Only show menu if user pressed Escape after death; otherwise quick restart
   resetForNewRun();
   Game.state = 'PLAY';
+  if (typeof IntroCaption !== 'undefined') IntroCaption.start();
 }
 
 // Press Escape on death to go to menu
@@ -8774,6 +8921,7 @@ function frame(now){
   // particles update always
   updateParticles(dt);
   HUD.update(dt);
+  IntroCaption.update(dt);
   // Progression — abilities, curses, popups, cooldowns. Skipped during
   // pure-cinematic states so timers don't drain while the player is reading.
   if (Game.state==='PLAY' || Game.state==='BOSS' || Game.state==='ENCOUNTER'){
@@ -8839,6 +8987,7 @@ function frame(now){
     HUD.draw();
     Mutation.drawBadge();
     Achv.draw();
+    IntroCaption.draw();
     if (Game.state === 'MAMA_CALL') MamaCall.draw();
     BinRunKnows.draw();
     if (Game.state === 'DEATH') Death.draw();
