@@ -2672,6 +2672,23 @@ function updateEntities(dt){
     // off-screen left = remove
     if (e.x - Game.scrollX < -200) { Entities.splice(i,1); continue; }
     if (!e.alive) { Entities.splice(i,1); continue; }
+
+    // === PICKUP MAGNETISM ===
+    // Pods/Energy/Pfand drift toward Bin Run when within ~140px of him.
+    // Feels generous, makes the player feel "lucky", and naturally rewards
+    // jumping at the right moment.
+    if (e.pickup && e.alive && Player.alive){
+      const ex = e.x - Game.scrollX;
+      const dx = (Player.x + Player.w/2) - ex;
+      const dy = (Player.y + Player.h/2) - e.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0 && d < 140){
+        const pull = (1 - d/140) * 320 * dt;   // stronger when closer
+        e.x += (dx/d)*pull;
+        e.y += (dy/d)*pull;
+      }
+    }
+
     // collision with player
     const hb = Player.hb();
     const eb = {x:e.x - Game.scrollX, y:e.y, w:e.w, h:e.h};
