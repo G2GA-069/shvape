@@ -946,9 +946,13 @@ const Vape = {
     if (this.v <= 5 && !manual) return;
     const now = Game.realT;
     if (manual && now - Game.lastPuffT < 2) {
-      Game.chainPuffs++;
+      Game.chainPuffs = Math.min(10, Game.chainPuffs + 1); // cap at x10 — past that bonus already maxed and HUD gets spammy
       const bonus = Math.min(400, 50 * Math.pow(2, Game.chainPuffs-1));
-      Krass.add(bonus, `CHAIN-VAPE x${Game.chainPuffs}`);
+      // Only emit a HUD note for the first push of the chain plus on x10 milestone
+      // so rapid V-mashing doesn't flood the screen.
+      const showLabel = (Game.chainPuffs <= 4) || (Game.chainPuffs === 10);
+      if (showLabel) Krass.add(bonus, `CHAIN-VAPE x${Game.chainPuffs}${Game.chainPuffs===10?' MAX':''}`);
+      else { Krass.v = clamp(Krass.v + bonus, 0, 100); Krass.pulseT = 0.3; } // silent credit
     } else if (manual) Game.chainPuffs = 0;
     Game.lastPuffT = now;
     this.v = Math.min(100, this.v + 8);
@@ -2186,13 +2190,18 @@ function updateEntities(dt){
         // obstacle hit
         if (e.type==='strommast' && Player.ducking) { /* OK, ducked under cable */ }
         else {
+          // Only credit Aura / fire comic burst if the hit actually lands.
+          // Player.hit() short-circuits during the 1-sec invuln window, but we
+          // used to call Krass.add() unconditionally — that stacked +150 AURA
+          // every frame of overlap for an entire second.
+          const hitLanded = Player.invuln <= 0;
           Player.hit(20, e.type);
-          // Bierbank crash on purpose: detect "on purpose" = high speed, no jump near?
-          if (e.type==='bierbank') Krass.add(150, 'BIERBANK ZERLEGT, BRUDI');
-          if (e.type==='misthaufen' && Krass.tier()>=2) Krass.add(200, 'MIST GEYEETET');
-          if (e.type==='gartenzwerg') Krass.add(100, 'GARTENZWERG GEYEETET, SHEESH');
-          // Comic burst
-          comicBurst(Player.x + 30, Player.y, choice(COMIC_SFX));
+          if (hitLanded){
+            if (e.type==='bierbank') Krass.add(150, 'BIERBANK ZERLEGT, BRUDI');
+            if (e.type==='misthaufen' && Krass.tier()>=2) Krass.add(200, 'MIST GEYEETET');
+            if (e.type==='gartenzwerg') Krass.add(100, 'GARTENZWERG GEYEETET, SHEESH');
+            comicBurst(Player.x + 30, Player.y, choice(COMIC_SFX));
+          }
         }
       }
     }
@@ -3330,7 +3339,17 @@ const HUD = {
   popupT: 0,             // remaining display time
   nextPopupT: 25,        // seconds until next firing
   note(text, color){
-    this.notes.push({text, color: color||'#fff', t:0, life:2.5});
+    // Suppress an exact duplicate if it's still on screen — keeps the HUD
+    // readable when something fires repeatedly (e.g. multiple chain-vapes
+    // arriving inside the same 2.5-sec window).
+    const top = this.notes[this.notes.length-1];
+    if (top && top.text === text){
+      top.t = 0; // reset its life so it stays the same single line
+      return;
+    }
+    this.notes.push({text, color: color||'#fff', t:0, life:2.0});
+    // Hard cap on visible queue — keeps it from turning into a wall of text.
+    if (this.notes.length > 5) this.notes.splice(0, this.notes.length - 5);
   },
   firePopup(){
     // 50/50 between Sigma rule and Insta DM
