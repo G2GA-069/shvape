@@ -96,8 +96,8 @@ const COLORS = {
 const BOSS_TIMES = [75, 150, 225, 300, 375, 450, 540];
 const BOSS_NAMES = ['DAS ZEUGNIS','DIE CLIQUE','HERR DREXLER','DIE POLIZEI','RUDOLF SHVAPE','DER SCHWARZWALD','DIE MUTTER'];
 
-const SPRUCH_SUBJ = ["Dein Vater","Rudolf","Die Clique","Frau Müller","Mutti","Frau Herta","Der Schäferhund","Pfarrer Kornblum","Die ganze Gemeinde","Justin","Chantal"];
-const SPRUCH_VERB = ["weint.","lacht.","schämt sich.","hat's gesehen.","kläfft.","ist enttäuscht.","ruft die Polizei.","betet für dich.","schüttelt den Kopf.","postet's auf Insta."];
+const SPRUCH_SUBJ = ["Dein Vater","Rudolf","Die Clique","Frau Müller","Mutti","Frau Herta","Der Schäferhund","Pfarrer Kornblum","Die ganze Gemeinde","Justin","Chantal","Marvin","Habibi vom Späti","Kevin aus der 9b","Der Ümit","Die WhatsApp-Gruppe","Brudi","Dein Trainer","Die ganze Realschule","Murat KA","Die Kassiererin"];
+const SPRUCH_VERB = ["weint.","lacht.","schämt sich.","hat's gesehen.","kläfft.","ist enttäuscht.","ruft die Polizei.","betet für dich.","schüttelt den Kopf.","postet's auf Insta.","schreibt 'L, Brudi'.","sagt 'Wahllah, cringe'.","ist hart lost.","raffelt's nicht.","wischt links.","screenshottet's.","kommentiert 'sus, digga'.","ist im Cope.","sagt nur 'Sheesh'.","postet's in die Familien-WhatsApp.","schickt ein 💀 in die Gruppe.","sagt 'Raff dich, Junge'.","gibt L."];
 const COMIC_SFX = ["BAM!","POW!","ZACK!","ALDA!","AUTSCH!","BONK!","AUA!","ALDA NEIN!","VOLLPFOSTEN!"];
 const NICKNAMES = ["BinRun69","TrickShotTobi","VapeLord420","Schmitti","Murat_KA","Justin04","ChantalXX","MarvinSucht","AldaEy","DampfKönig","Mutschelbach_Boy","RudShvape","BadenWürttemb3rg","Albtal_Drift","EBEKA_Stammkunde","FrauHertaHasst","Pfand_Sammler","Realschule_Reject","S11_Schwarzfahrer","ZeugnisOpfer"];
 const SIGNS = ["Mutschelbach 2 km","Karlsbad-Langensteinbach","EBEKA","Penny","Fleischerei Schäfer","Achtung Wildwechsel","Privatgrundstück — Betreten verboten!","Hier könnte Ihre Werbung stehen","Kehrwoche","B3 →","Ettlingen","Albtal-S11","Gasthof Krone","Frisör Petra","Eisdiele Venezia"];
@@ -175,7 +175,7 @@ const Game = {
   ersatzVape: false,    // after Mutter
   konfBibel: false,     // after Pfarrer loss (10% lower jumps)
   flyerOnGround: false, // after Polizei
-  catchphrase: ['Alda, ey!','Krass!','Voll geil!','Digga!'],
+  catchphrase: ['Alda, ey!','Wahllah, krass!','Raff dich, Brudi!','Sheesh, digga!','Voll geil, lan!','Geht klar, ja?','Bin Run goes hart!','Same, Brudi.','Habibi, was geht?','Yallah, Junge!'],
   good: false,
   endingShown: false,
   // shvape cam easter egg
@@ -359,29 +359,60 @@ const Audio = {
       this.brass = new Tone.PolySynth(Tone.Synth, {oscillator:{type:'sawtooth'}, envelope:{attack:0.05,decay:0.2,sustain:0.4,release:0.1}}).connect(this.master);
       this.brass.volume.value = -16;
 
-      Tone.Transport.bpm.value = 140;
+      Tone.Transport.bpm.value = 156; // Tetris-pace, faster than vanilla chip
 
-      const C='C3', E='E3', G='G3', A='A3', D='D4', E4='E4', G4='G4', C5='C5';
-      const bassPattern = [C,null,E,null,G,null,E,null];
-      const leadPattern = [C5,E4,G4,E4,A,G4,E4,D];
-      const arpPattern = [C5,G4,E4,G4];
+      // === BADNERLIED x TETRIS — 32-step 16th-note loop in D major ===
+      // Lead follows the Badnerlied melodic contour ("Das schoenste Land in
+      // Deutschlands Gauen, das ist mein Badnerland.") with rapid 16th-note
+      // ornamentation between the structural notes. Bass walks I-vi-IV-V.
+      // Arp is constant 16ths (Korobeiniki feel) — runs from the start, not
+      // gated behind a 60-sec timer like before.
+      const bassPattern = [
+        // Bar 1: D pedal | F#m pivot
+        'D2', null, 'A2', null,  'D2', null, 'F#2', null,
+        // Bar 2: Bm | A
+        'B2', null, 'F#2', null, 'A2', null, 'C#3', null,
+        // Bar 3: G | D
+        'G2', null, 'D3', null,  'G2', null, 'B2', null,
+        // Bar 4: A7 -> D resolve
+        'A2', null, 'C#3', null, 'A2', null, 'D2', 'D2',
+      ];
+      const leadPattern = [
+        // Badnerlied opening: "Das schoens-te Land in Deutsch-lands Gau-en"
+        'D5','F#5','A5','F#5',  'D6','A5','F#5','D5',
+        // "das ist mein Bad-ner-land" (descending phrase)
+        'A5','G5','F#5','E5',   'D5',null,'A4',null,
+        // "Es ist so herr-lich an-zu-schau-en"
+        'B4','D5','G5','B5',    'A5','G5','F#5','D5',
+        // "und ruht in Got-tes Hand"
+        'A4','C#5','E5','A5',   'F#5','E5','D5',null,
+      ];
+      const arpPattern = [
+        // Tetris-style ascending sweeps over the chord changes
+        'D4','F#4','A4','D5',   'F#4','A4','D5','F#5',
+        'B3','D4','F#4','B4',   'A3','C#4','E4','A4',
+        'G3','B3','D4','G4',    'D4','F#4','A4','D5',
+        'A3','C#4','E4','A4',   'D4','F#4','A4','D5',
+      ];
       let step=0;
       this.loop = new Tone.Loop(time=>{
-        const i = step%8;
+        const i = step%32;
         if (bassPattern[i]) this.bass.triggerAttackRelease(bassPattern[i], '16n', time);
         if (leadPattern[i]) this.lead.triggerAttackRelease(leadPattern[i], '16n', time, 0.5);
-        if (Game.realT > 60) {
-          this.arp.triggerAttackRelease(arpPattern[step%4], '32n', time);
+        // Arp from the start — the Tetris drive
+        if (arpPattern[i]) this.arp.triggerAttackRelease(arpPattern[i], '32n', time);
+        // Drums kick in at 30 sec (was 180 — too late to be catchy)
+        if (Game.realT > 30) {
+          if (i%8===4) this.snare.triggerAttackRelease('16n', time);
+          if (i%2===1) this.hat.triggerAttackRelease('32n', time);
         }
-        if (Game.realT > 180) {
-          if (i%4===2) this.snare.triggerAttackRelease('16n', time);
-          this.hat.triggerAttackRelease('32n', time);
-        }
+        // Detune at 8 min for the cursed late-game feel
         if (Game.realT > 480) {
-          this.lead.detune.value = 5; // subtle
+          this.lead.detune.value = 5;
         }
-        if (Krass.tier()===4 && i===0) {
-          this.brass.triggerAttackRelease(['C4','E4','G4'], '8n', time, 0.4);
+        // LEGENDE brass triumph — D major triad on each loop start + bar 3
+        if (Krass.tier()===4 && (i===0 || i===16)) {
+          this.brass.triggerAttackRelease(['D4','F#4','A4'], '8n', time, 0.4);
         }
         step++;
       }, '16n').start(0);
@@ -561,14 +592,18 @@ const Vape = {
     } else if (manual) Game.chainPuffs = 0;
     Game.lastPuffT = now;
     this.v = Math.min(100, this.v + 8);
-    if (manual && this.v >= 99) Krass.add(75, 'PURE FLEX');
+    if (manual && this.v >= 99) Krass.add(75, 'PURE FLEX, WAHLLAH');
     Audio.vape();
-    // cloud word
+    // cloud word — keep HILFE as the cursed 1-in-50 easter egg, broaden the rest
     let word = null;
     const r = Math.random();
-    if (r < 0.02) word = 'HILFE'; // 1 in 50
-    else if (r < 0.55) word = 'ALDA';
-    else if (r < 0.85) word = 'KRASS';
+    if (r < 0.02) word = 'HILFE'; // 1 in 50, the cursed one
+    else if (r < 0.22) word = 'ALDA';
+    else if (r < 0.40) word = 'KRASS';
+    else if (r < 0.55) word = 'WAHLLAH';
+    else if (r < 0.68) word = 'SHEESH';
+    else if (r < 0.78) word = 'GYATT';
+    else if (r < 0.86) word = 'BRUDI';
     if (word === 'HILFE') Audio.shimmer();
     vapeCloud(Player.x + 30, Player.y - 20, word);
     // Boost on manual puff
@@ -1242,9 +1277,9 @@ function updateEntities(dt){
         else {
           Player.hit(20, e.type);
           // Bierbank crash on purpose: detect "on purpose" = high speed, no jump near?
-          if (e.type==='bierbank') Krass.add(150, 'BIERBANK CRASH');
-          if (e.type==='misthaufen' && Krass.tier()>=2) Krass.add(200, 'MIST AUF KOMMANDO');
-          if (e.type==='gartenzwerg') Krass.add(100, 'GARTENZWERG UMGEHAUEN');
+          if (e.type==='bierbank') Krass.add(150, 'BIERBANK ZERLEGT, BRUDI');
+          if (e.type==='misthaufen' && Krass.tier()>=2) Krass.add(200, 'MIST GEYEETET');
+          if (e.type==='gartenzwerg') Krass.add(100, 'GARTENZWERG GEYEETET, SHEESH');
           // Comic burst
           comicBurst(Player.x + 30, Player.y, choice(COMIC_SFX));
         }
@@ -1523,9 +1558,9 @@ class B2_Clique extends BossBase {
     this.cringe = Krass.v < 50;
     if (this.cringe) {
       Vape.v = Math.max(0, Vape.v - 20);
-      HUD.note('Chantal: "Lol Bin Run ist so cringe"', '#ff66ff');
+      HUD.note('Chantal: "Lol Bin Run hart L, cringe"', '#ff66ff');
     } else if (Krass.isLegende()){
-      Krass.add(1500, 'LEGENDE-EINTRITT: Yo Bin Run ist HART');
+      Krass.add(1500, 'LEGENDE: Wahllah Bin Run goes HART');
     }
   }
   spawnQ(){
@@ -1551,13 +1586,13 @@ class B2_Clique extends BossBase {
           this.successes++;
           comicBurst(Player.x + 30, Player.y - 40, 'TRICK!');
           vapeCloud(Player.x+30, Player.y-30, 'KRASS');
-          Krass.add(80, 'TRICKSHOT');
+          Krass.add(80, 'TRICKSHOT, SHEESH');
           Game.baseScore += 250;
           this.spawnQ();
         }
       } else {
         Vape.v = Math.max(0, Vape.v - 5);
-        HUD.note('VERHAUEN!', '#ff5050');
+        HUD.note('L, BRUDI! VERHAUEN!', '#ff5050');
         this.qteIdx = 0;
       }
     }
@@ -1707,9 +1742,9 @@ class B4_Polizei extends BossBase {
         // success
         this.done = true;
         if (Krass.isLegende()){
-          Krass.add(500, "Ich kenne meine Rechte!");
+          Krass.add(500, "Ich kenne meine Rechte, Brudi!");
         }
-        Krass.add(2000, 'POLIZEI ENTKOMMEN');
+        Krass.add(2000, 'POLIZEI GHOSTED');
         Game.flyerOnGround = true;
         Boss.end(Math.floor(3000 * Krass.mul()));
       }
@@ -2042,7 +2077,7 @@ class E_Herta extends EncBase {
     }
     // vape in face
     if (Input.pressed.vape && this.bubbleI > 0){
-      Krass.add(300, 'GEDAMPFT');
+      Krass.add(300, 'INS GESICHT GEDAMPFT');
       this.bubbleT = 3;
     }
   }
@@ -2087,7 +2122,7 @@ class E_Pfarrer extends EncBase {
       }
     }
     if (Input.pressed.vape){
-      Krass.add(1000, 'VAPE IN DER KIRCHE'); flash('#ffeeaa', 0.4); shake(10);
+      Krass.add(1000, 'GEDAMPFT IN DER KIRCHE'); flash('#ffeeaa', 0.4); shake(10);
     }
     if (this.t > 18 && !this.done){
       Game.konfBibel = true;
@@ -2210,16 +2245,16 @@ class E_Bus extends EncBase {
         const trick = this.tricks[this.successes % this.tricks.length];
         const word = trick==='alda'?'ALDA':trick==='finger'?'🖕':null;
         vapeCloud(Player.x+30, Player.y-30, word);
-        Krass.add(80, 'TRICK');
+        Krass.add(80, 'TRICK WAHLLAH');
         comicBurst(Player.x+30, Player.y-50, 'KRASS!');
         if (this.successes >= this.target){
-          this.done = true; Krass.add(2000, 'BUSHALTESTELLE-LEGENDE!');
-          HUD.note('Realschüler klatschen!', '#ffd633');
+          this.done = true; Krass.add(2000, 'BUSHALTESTELLE GOAT');
+          HUD.note('Realschüler: "Wahllah, krass digga!"', '#ffd633');
           Encounter.end(1500); return;
         }
       } else {
-        Krass.add(-500, 'CRINGE');
-        HUD.note('Justin DM: "Cringe, Digga."', '#ff5050');
+        Krass.add(-500, 'L, HART CRINGE');
+        HUD.note('Justin DM: "Hart L. Raff dich, Brudi."', '#ff5050');
       }
     }
     if (this.t > 15) { this.done=true; Encounter.end(0); }
@@ -2269,7 +2304,7 @@ class E_Graffiti extends EncBase {
       if (Math.random() < 0.4) spawnParticle({x:Player.x+50, y:Player.y+30, vx:rand(-30,30), vy:rand(-20,20), size:rand(2,5), color:'#ff66ff', life:0.5, maxLife:0.5});
       if (this.polizeiT >= 5){
         this.busted = true;
-        HUD.note('POLIZEI KOMMT!', '#ff3030');
+        HUD.note('POLIZEI! YALLAH WEG!', '#ff3030');
         Boss.start(3); // trigger Polizei (idx 3)
         this.done=true; Encounter.end(0); return;
       }
