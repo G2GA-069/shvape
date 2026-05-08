@@ -109,7 +109,7 @@ const BOSS_NAMES = ['DAS ZEUGNIS','DIE CLIQUE','HERR DREXLER','DIE POLIZEI','RUD
 const SPRUCH_SUBJ = ["Dein Vater","Rudolf","Die Clique","Frau Müller","Mutti","Frau Herta","Der Schäferhund","Pfarrer Kornblum","Die ganze Gemeinde","Justin","Chantal","Marvin","Habibi vom Späti","Kevin aus der 9b","Der Ümit","Die WhatsApp-Gruppe","Brudi","Dein Trainer","Die ganze Realschule","Murat KA","Die Kassiererin"];
 const SPRUCH_VERB = ["weint.","lacht.","schämt sich.","hat's gesehen.","kläfft.","ist enttäuscht.","ruft die Polizei.","betet für dich.","schüttelt den Kopf.","postet's auf Insta.","schreibt 'L, Brudi'.","sagt 'Wahllah, cringe'.","ist hart lost.","raffelt's nicht.","wischt links.","screenshottet's.","kommentiert 'sus, digga'.","ist im Cope.","sagt nur 'Sheesh'.","postet's in die Familien-WhatsApp.","schickt ein 💀 in die Gruppe.","sagt 'Raff dich, Junge'.","gibt L."];
 const COMIC_SFX = ["BAM!","POW!","ZACK!","ALDA!","AUTSCH!","BONK!","AUA!","ALDA NEIN!","VOLLPFOSTEN!"];
-const NICKNAMES = ["BinRun69","TrickShotTobi","VapeLord420","Schmitti","Murat_KA","Justin04","ChantalXX","MarvinSucht","AldaEy","DampfKönig","Mutschelbach_Boy","RudShvape","BadenWürttemb3rg","Albtal_Drift","EBEKA_Stammkunde","FrauHertaHasst","Pfand_Sammler","Realschule_Reject","S11_Schwarzfahrer","ZeugnisOpfer"];
+const NICKNAMES = ["BinRun69","TrickShotTobi","VapeLord420","Schmitti","Murat_KA","Justin04","ChantalXX","MarvinSucht","AldaEy","DampfKönig","Mutschelbach_Boy","RudShvape","BadenWürttemb3rg","Albtal_Drift","Edeka_Stammkunde","FrauHertaHasst","Pfand_Sammler","Realschule_Reject","S11_Schwarzfahrer","ZeugnisOpfer","Sigma_Karlsbad","Wallah_Brudi","KIT_Cringe","Schwarzwald_Drip"];
 // === SIGMA RULES + INSTA DMS — deep parodic pop-up database ===
 // Designed so a player rarely sees the same one twice in a single run.
 // Adult NPCs / authority figures keep their formal German register on
@@ -135,7 +135,7 @@ const SIGMA_RULES = [
   "Sigma Rule #48: Wer 'Bitte sehr' sagt, ist Beamter.",
   "Sigma Rule #51: Goldkette wird nie ausgezogen. Auch nicht in der Dusche.",
   "Sigma Rule #56: AirPods kosten mehr als deine Adiletten.",
-  "Sigma Rule #59: Edeka ist EBEKA. Penny ist Pennay.",
+  "Sigma Rule #59: Edeka ist heilig. Penny ist Werktag.",
   "Sigma Rule #62: Hauptschule ist Eliteuni.",
   "Sigma Rule #67: Wer in Mutschelbach wohnt, hat es geschafft.",
   "Sigma Rule #69: Nice.",
@@ -276,7 +276,7 @@ const INSTA_DMS = [
   ['florin.bauarbeiter', 'Schaufel weg, Junge.'],
   ['florin.bauarbeiter', 'Pause! Maultaschen!'],
   // Oma
-  ['oma.hilde',    'Ich war heute beim Edeka. EBEKA meinte ich.'],
+  ['oma.hilde',    'Ich war heute beim Edeka. Bin Run dort gesehen.'],
   ['oma.hilde',    'Was guckst du, Bub?'],
   ['oma.hilde',    'Hesch des gsehe!'],
   ['oma.hilde',    'Kommst du Sonntag zum Kaffee?'],
@@ -337,7 +337,7 @@ const SIGNS_MUTSCHELBACH = [
   "Privatgrundstück — Betreten verboten!","Achtung: Hier kontrolliert Ihr Nachbar!",
   "Hundekot-Beutelspender","Gasthof Krone","Frisör Petra","Streuobstwiese — Fallobst nicht entnehmen",
   "Bauernhofladen — Selbstbedienung","Hier könnte Ihre Werbung stehen — Frau Schimanski lehnt ab",
-  "EBEKA","Pennay","Fleischerei Schäfer","Bäckerei Häußler","Eisdiele Venezia",
+  "Edeka 200 m","Penny","Fleischerei Schäfer","Bäckerei Häußler","Eisdiele Venezia",
 ];
 const SIGNS_LANGENSTEINBACH = [
   "Karlsbad-Langensteinbach","St. Rochus-Krankenhaus","Realschule Karlsbad",
@@ -3038,7 +3038,7 @@ class B2_Clique extends BossBase {
     }
   }
   draw(){
-    // EBEKA bench backdrop
+    // Edeka bench backdrop
     ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.fillRect(0,0,CFG.W,CFG.H);
     // 3 friends on bench
     const bx = CFG.W*0.6, by = CFG.H*0.42;
