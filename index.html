@@ -1198,24 +1198,28 @@ const HERTA_BUBBLES = [
 
 // === ZONE SYSTEM — changing scenery as the run progresses ===
 const ZONES = [
+  // Tourist archetypes are sprinkled into the appropriate zones — Stuttgart-
+  // Schwabe wanders into Mutschelbach, Berliner/Hamburger end up in Ettlingen
+  // Marktplatz, Münchnerin in the Schwarzwald hiking edge, Pforzheimer at
+  // the Industriegebiet, Frankfurter Banker at Waldbronn-Therme (wellness).
   { name:'MUTSCHELBACH',           start:0,   sky:'#7ec0ee', signs:SIGNS_MUTSCHELBACH,
     midPool:[['fachwerk',3],['kirche',2],['edeka',2],['tree',3],['gasthof',1]],
-    nearPool:[['sign',3],['oma',2],['gartenzwerg',2],['fence',2],['dog',1],['lederhose',1],['rentnerBank',2],['badischOma',2],['imker',1]] },
+    nearPool:[['sign',3],['oma',2],['gartenzwerg',2],['fence',2],['dog',1],['lederhose',1],['rentnerBank',2],['badischOma',2],['imker',1],['schwabeTourist',1]] },
   { name:'KARLSBAD-LANGENSTEINBACH', start:75, sky:'#9ad0ee', signs:SIGNS_LANGENSTEINBACH,
     midPool:[['fachwerk',1],['realschule',3],['barbara-kirche',2],['doner',3],['baeckerei',2],['s11',2],['shisha',1]],
-    nearPool:[['sign',3],['imbissOnkel',3],['afghanenJugend',3],['spaetiOnkel',2],['kindFleischkaes',1],['fence',2],['rentnerNordic',1],['realschüler',2]] },
+    nearPool:[['sign',3],['imbissOnkel',3],['afghanenJugend',3],['spaetiOnkel',2],['kindFleischkaes',1],['fence',2],['rentnerNordic',1],['realschüler',2],['karlsruher',1],['saarlaender',1]] },
   { name:'INDUSTRIEGEBIET ITTERSBACH', start:180, sky:'#a8b0bc', signs:SIGNS_ITTERSBACH,
     midPool:[['bosch',4],['fabrik',3],['container',2],['s11',1],['halle',2]],
-    nearPool:[['sign',3],['bauarbeiterRO',3],['gabelstapler',2],['fence',3],['warnschild',2],['workerKurd',2]] },
+    nearPool:[['sign',3],['bauarbeiterRO',3],['gabelstapler',2],['fence',3],['warnschild',2],['workerKurd',2],['pforzheimer',1]] },
   { name:'WALDBRONN — ALBTAL-THERME', start:285, sky:'#b8e0d2', signs:SIGNS_WALDBRONN,
     midPool:[['therme',3],['kurhaus',2],['palme',1],['fachwerk',1],['tree',3]],
-    nearPool:[['sign',3],['rentnerNordic',4],['rentnerBank',2],['salomonJogger',2],['baederHandtuch',1],['fence',2],['oma',2]] },
+    nearPool:[['sign',3],['rentnerNordic',4],['rentnerBank',2],['salomonJogger',2],['baederHandtuch',1],['fence',2],['oma',2],['hessischer',1],['amiSoldat',1]] },
   { name:'ETTLINGEN — MARKTPLATZ',  start:390, sky:'#fcb872', signs:SIGNS_ETTLINGEN,
     midPool:[['schloss-mid',3],['marktplatz',3],['fachwerk',2],['eismann',2],['s11',1]],
-    nearPool:[['sign',3],['eismannRoberto',3],['marktstand',2],['hochschulerin',2],['shisha-jugend',2],['fence',1],['imbissOnkel',1]] },
+    nearPool:[['sign',3],['eismannRoberto',3],['marktstand',2],['hochschulerin',2],['shisha-jugend',2],['fence',1],['imbissOnkel',1],['preusseTourist',1],['berliner',1],['hamburger',1],['franzoeseTourist',1],['ettlingerNachbar',1]] },
   { name:'VÖLKERSBACH / SCHWARZWALD-RAND', start:495, sky:'#5a7350', signs:SIGNS_VOELKERSBACH,
     midPool:[['fir',5],['weingut',2],['kuckuck',2],['fachwerk',1]],
-    nearPool:[['sign',2],['wanderer',3],['imker',2],['schuetze',2],['ziege',2],['fence',2],['lederhose',1],['badischOma',2]] },
+    nearPool:[['sign',2],['wanderer',3],['imker',2],['schuetze',2],['ziege',2],['fence',2],['lederhose',1],['badischOma',2],['münchnerin',1],['pfaelzer',1]] },
 ];
 function currentZone(){
   let z = ZONES[0];
@@ -1503,6 +1507,21 @@ const NPC_DIALOG_POOLS = {
   ettlingerNachbar: [
     "In Ettlingen haben wir wenigstens ein Schloss.","Karlsbad ist halt nicht Ettlingen.",
     "Schlossfestspiele — was hat Karlsbad?","Wir haben den Marktplatz mit Niveau.",
+  ],
+  berliner: [
+    "Wat soll det denn?","Späti gibt's bei euch nicht?","Ick fass es nicht.",
+    "Hier ist alles so... klein.","Boah, so'n Käse.","DB-Hotline ist 24/7 frech.",
+    "Friedrichshain hätte mehr Atmo.","Schwobens-Land — naja.",
+  ],
+  hamburger: [
+    "Moin, moin.","Im Norden wäre das anders.","Fischbrötchen vermisst!",
+    "Hardtsee — das ist also euer 'Meer'?","Hapag-Lloyd hat's besser organisiert.",
+    "St. Pauli ist Heimat.","Auf zum Hafen — ach, kein Hafen hier.",
+  ],
+  münchnerin: [
+    "Servus.","Bei uns auf der Wiesn...","Mei Schatzi mag des nicht.",
+    "Bayern hält zusammen.","Tracht trägt ma' Sonntags.","FC Bayern, gell?",
+    "Hier ist's halt anders.",
   ],
   pforzheimer: [
     "Ja, ich bin aus Pforzheim, was ist daran so schlimm?",
@@ -3776,6 +3795,217 @@ function drawNear(o){
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-50, 20, 30);
     if (Math.random()<0.005) drawBubble(x-5, baseY-95, "Wellness!", 9);
   }
+  // === STAGE 2 — TOURIST + REGIONAL ARCHETYPES (12) ===
+  else if (o.type==='schwabeTourist'){
+    // Loden coat, Wandersack, hunting hat with feather, fanny pack
+    ctx.fillStyle='#3a5a30'; ctx.fillRect(x, baseY-54, 22, 34); // Loden
+    ctx.fillStyle='#888'; ctx.fillRect(x+2, baseY-32, 18, 6); // fanny pack
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-66, 16, 14);
+    // hunting hat (green felt) + feather
+    ctx.fillStyle='#1f3a20'; ctx.fillRect(x+1, baseY-72, 20, 8);
+    ctx.fillStyle='#a85020'; ctx.fillRect(x+19, baseY-78, 3, 8);
+    ctx.fillStyle='#000'; ctx.fillRect(x+6, baseY-58, 3, 3); ctx.fillRect(x+13, baseY-58, 3, 3);
+    // Wanderstock
+    ctx.strokeStyle='#5a3014'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x+24, baseY-60); ctx.lineTo(x+26, baseY-2); ctx.stroke();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-54, 22, 34);
+    if (Math.sin(o.animT*0.9+o.dialogIdx) > 0.94) drawBubble(x-10, baseY-100, (o.dialog||'Bei uns in Stuttgart...'), 10);
+  }
+  else if (o.type==='preusseTourist'){
+    // Black coat, glasses, big camera around neck
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(x, baseY-54, 20, 34);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+2, baseY-66, 16, 14);
+    ctx.fillStyle='#444'; ctx.fillRect(x+2, baseY-68, 16, 4);
+    // glasses
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.strokeRect(x+5, baseY-58, 4, 3); ctx.strokeRect(x+11, baseY-58, 4, 3);
+    ctx.beginPath(); ctx.moveTo(x+9, baseY-57); ctx.lineTo(x+11, baseY-57); ctx.stroke();
+    // camera
+    ctx.fillStyle='#000'; ctx.fillRect(x+4, baseY-44, 12, 8);
+    ctx.fillStyle='#555'; ctx.beginPath(); ctx.arc(x+10, baseY-40, 3, 0, Math.PI*2); ctx.fill();
+    // strap
+    ctx.strokeStyle='#000'; ctx.beginPath(); ctx.moveTo(x+4, baseY-44); ctx.lineTo(x+2, baseY-54); ctx.moveTo(x+16, baseY-44); ctx.lineTo(x+18, baseY-54); ctx.stroke();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-54, 20, 34);
+    if (Math.sin(o.animT*1.0+o.dialogIdx) > 0.93) drawBubble(x-10, baseY-100, (o.dialog||'Wo ist denn hier das Schloss?'), 10);
+  }
+  else if (o.type==='franzoeseTourist'){
+    // Beret, striped shirt, baguette under arm
+    ctx.fillStyle='#fff'; ctx.fillRect(x, baseY-52, 20, 30);
+    // stripes
+    ctx.fillStyle='#1864c0'; for (let i=0;i<5;i++) ctx.fillRect(x, baseY-50+i*6, 20, 2);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+2, baseY-64, 16, 12);
+    // beret
+    ctx.fillStyle='#222'; ctx.fillRect(x+1, baseY-68, 18, 6);
+    ctx.fillStyle='#cc1818'; ctx.fillRect(x+15, baseY-70, 4, 4);
+    ctx.fillStyle='#000'; ctx.fillRect(x+5, baseY-58, 3, 3); ctx.fillRect(x+12, baseY-58, 3, 3);
+    // moustache
+    ctx.fillStyle='#5a3014'; ctx.fillRect(x+5, baseY-52, 10, 2);
+    // baguette under arm
+    ctx.fillStyle='#d8a878';
+    ctx.fillRect(x+18, baseY-44, 18, 4);
+    ctx.fillStyle='#a8542a'; ctx.fillRect(x+18, baseY-43, 18, 1);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-52, 20, 30);
+    if (Math.sin(o.animT*1.1+o.dialogIdx) > 0.91) drawBubble(x-10, baseY-100, (o.dialog||'Ah, le Schwarzwald!'), 10);
+  }
+  else if (o.type==='pfaelzer'){
+    // Red-cheeked Pfälzer with wine glass + rural plaid shirt
+    ctx.fillStyle='#a82020'; ctx.fillRect(x, baseY-52, 22, 32); // dunkelrot
+    // checks pattern
+    ctx.fillStyle='#fff'; for (let i=0;i<5;i++) ctx.fillRect(x+1+i*4, baseY-50, 1, 28);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-64, 16, 12);
+    // red ruddy cheeks
+    ctx.fillStyle='#cc4040'; ctx.fillRect(x+2, baseY-58, 3, 3); ctx.fillRect(x+17, baseY-58, 3, 3);
+    ctx.fillStyle='#5a3014'; ctx.fillRect(x+3, baseY-66, 16, 4); // hair
+    ctx.fillStyle='#000'; ctx.fillRect(x+6, baseY-58, 3, 3); ctx.fillRect(x+13, baseY-58, 3, 3);
+    // wine glass
+    ctx.fillStyle='#5a1818'; ctx.fillRect(x+22, baseY-48, 6, 8);
+    ctx.fillStyle='#a82020'; ctx.fillRect(x+22, baseY-46, 6, 4);
+    ctx.fillStyle='#888'; ctx.fillRect(x+24, baseY-40, 2, 8);
+    ctx.fillRect(x+22, baseY-32, 6, 2);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-52, 22, 32);
+    if (Math.sin(o.animT*0.8+o.dialogIdx) > 0.92) drawBubble(x-10, baseY-100, (o.dialog||'Worschd is Worschd.'), 10);
+  }
+  else if (o.type==='hessischer'){
+    // Banker — grey suit + glasses + briefcase
+    ctx.fillStyle='#3a3a3a'; ctx.fillRect(x, baseY-54, 22, 34);
+    ctx.fillStyle='#fff'; ctx.fillRect(x+8, baseY-48, 6, 14); // shirt
+    ctx.fillStyle='#cc1818'; ctx.fillRect(x+10, baseY-46, 2, 10); // tie
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-66, 16, 14);
+    ctx.fillStyle='#5a3014'; ctx.fillRect(x+3, baseY-68, 16, 4);
+    // glasses
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.strokeRect(x+5, baseY-58, 4, 3); ctx.strokeRect(x+13, baseY-58, 4, 3);
+    // briefcase
+    ctx.fillStyle='#5a3014'; ctx.fillRect(x+22, baseY-32, 12, 14);
+    ctx.fillStyle='#888'; ctx.fillRect(x+27, baseY-30, 2, 2);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-54, 22, 34);
+    if (Math.sin(o.animT*0.95+o.dialogIdx) > 0.93) drawBubble(x-10, baseY-100, (o.dialog||'Frankfurt > alles.'), 10);
+  }
+  else if (o.type==='pforzheimer'){
+    // Gold chain, tracksuit, gelled hair, gold watch
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(x, baseY-54, 22, 34);
+    ctx.fillStyle='#fff'; for (let i=0;i<3;i++) ctx.fillRect(x+1, baseY-48+i*6, 20, 1); // tracksuit lines
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-66, 16, 14);
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(x+3, baseY-68, 16, 6); // slick black hair
+    // huge gold chain
+    ctx.fillStyle='#ffd633';
+    ctx.beginPath(); ctx.arc(x+11, baseY-48, 8, 0.1*Math.PI, 0.9*Math.PI); ctx.fill();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x+11, baseY-48, 8, 0.1*Math.PI, 0.9*Math.PI); ctx.stroke();
+    // gold pendant
+    ctx.fillStyle='#ffd633'; ctx.fillRect(x+9, baseY-42, 4, 4);
+    // gold watch
+    ctx.fillStyle='#ffd633'; ctx.fillRect(x+22, baseY-36, 6, 4);
+    ctx.fillStyle='#000'; ctx.fillRect(x+6, baseY-58, 3, 3); ctx.fillRect(x+13, baseY-58, 3, 3);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-54, 22, 34);
+    if (Math.sin(o.animT*1.0+o.dialogIdx) > 0.91) drawBubble(x-10, baseY-100, (o.dialog||'Schmuckindustrie war früher gut.'), 10);
+  }
+  else if (o.type==='berliner'){
+    // Späti tote bag + headphones + dad sneakers attitude
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(x, baseY-52, 20, 32);
+    ctx.fillStyle='#222'; ctx.fillRect(x, baseY-22, 20, 2);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+2, baseY-64, 16, 12);
+    ctx.fillStyle='#5a3014'; ctx.fillRect(x+2, baseY-66, 16, 4); // beanie
+    // headphones
+    ctx.strokeStyle='#000'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.arc(x+10, baseY-66, 8, Math.PI, 2*Math.PI); ctx.stroke();
+    ctx.fillStyle='#222'; ctx.fillRect(x+1, baseY-66, 4, 6); ctx.fillRect(x+15, baseY-66, 4, 6);
+    // Späti tote
+    ctx.fillStyle='#cc4030'; ctx.fillRect(x+20, baseY-38, 12, 18);
+    ctx.fillStyle='#fff'; ctx.font='bold 5px "Press Start 2P"'; ctx.fillText('SPÄTI', x+22, baseY-26);
+    ctx.fillStyle='#000'; ctx.fillRect(x+5, baseY-58, 3, 3); ctx.fillRect(x+12, baseY-58, 3, 3);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-52, 20, 32);
+    if (Math.sin(o.animT*1.2+o.dialogIdx) > 0.91) drawBubble(x-10, baseY-100, (o.dialog||'In Berlin wäre das anders.'), 10);
+  }
+  else if (o.type==='hamburger'){
+    // Sailor cap, striped shirt, fischbrötchen in hand
+    ctx.fillStyle='#fff'; ctx.fillRect(x, baseY-50, 20, 30);
+    ctx.fillStyle='#1864c0'; for (let i=0;i<4;i++) ctx.fillRect(x, baseY-46+i*7, 20, 2);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+2, baseY-62, 16, 12);
+    ctx.fillStyle='#fff'; ctx.fillRect(x+1, baseY-68, 18, 8); // sailor cap
+    ctx.fillStyle='#1864c0'; ctx.fillRect(x+1, baseY-62, 18, 2);
+    ctx.fillStyle='#000'; ctx.fillRect(x+5, baseY-56, 3, 3); ctx.fillRect(x+12, baseY-56, 3, 3);
+    // Fischbrötchen
+    ctx.fillStyle='#d8a878'; ctx.fillRect(x+20, baseY-42, 10, 6);
+    ctx.fillStyle='#aaa'; ctx.fillRect(x+22, baseY-40, 6, 1);
+    ctx.fillStyle='#3a5a30'; ctx.fillRect(x+22, baseY-44, 6, 1);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-50, 20, 30);
+    if (Math.sin(o.animT*1.0+o.dialogIdx) > 0.93) drawBubble(x-10, baseY-100, (o.dialog||'Moin, Moin.'), 10);
+  }
+  else if (o.type==='münchnerin'){
+    // Dirndl with white blouse + braid
+    ctx.fillStyle='#fff'; ctx.fillRect(x+2, baseY-54, 16, 16); // blouse
+    ctx.fillStyle='#a82020'; ctx.fillRect(x, baseY-38, 22, 22); // skirt
+    ctx.fillStyle='#000'; for (let i=0;i<3;i++) ctx.fillRect(x+8, baseY-48+i*5, 4, 1); // dirndl laces
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-66, 16, 14);
+    ctx.fillStyle='#a8542a'; ctx.fillRect(x+3, baseY-68, 16, 4); // hair
+    // braid
+    ctx.fillStyle='#a8542a'; ctx.fillRect(x+18, baseY-60, 4, 14);
+    for (let i=0;i<3;i++) ctx.strokeStyle='#000', ctx.beginPath(), ctx.moveTo(x+18, baseY-58+i*5), ctx.lineTo(x+22, baseY-58+i*5), ctx.stroke();
+    ctx.fillStyle='#000'; ctx.fillRect(x+6, baseY-58, 3, 3); ctx.fillRect(x+13, baseY-58, 3, 3);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-54, 22, 38);
+    if (Math.sin(o.animT*1.05+o.dialogIdx) > 0.92) drawBubble(x-10, baseY-100, (o.dialog||'Servus.'), 10);
+  }
+  else if (o.type==='karlsruher'){
+    // KIT-Shirt + glasses + tablet
+    ctx.fillStyle='#0a4080'; ctx.fillRect(x, baseY-52, 20, 32); // KIT-Blau
+    ctx.fillStyle='#fff'; ctx.font='bold 6px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText('KIT', x+10, baseY-38);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+2, baseY-64, 16, 12);
+    ctx.fillStyle='#888'; ctx.fillRect(x+2, baseY-66, 16, 4); // grau-blond
+    // glasses
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.strokeRect(x+5, baseY-58, 4, 3); ctx.strokeRect(x+11, baseY-58, 4, 3);
+    // tablet
+    ctx.fillStyle='#222'; ctx.fillRect(x+20, baseY-40, 10, 14);
+    ctx.fillStyle='#88c0e0'; ctx.fillRect(x+21, baseY-39, 8, 12);
+    ctx.fillStyle='#000'; ctx.fillRect(x+5, baseY-58, 3, 3); ctx.fillRect(x+12, baseY-58, 3, 3);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-52, 20, 32);
+    if (Math.sin(o.animT*1.1+o.dialogIdx) > 0.92) drawBubble(x-10, baseY-100, (o.dialog||'Bundesverfassungsgericht.'), 10);
+  }
+  else if (o.type==='ettlingerNachbar'){
+    // Blazer + Weinglas + Schal
+    ctx.fillStyle='#3a4a8a'; ctx.fillRect(x, baseY-52, 22, 32); // blazer
+    ctx.fillStyle='#fff'; ctx.fillRect(x+8, baseY-46, 6, 14);
+    ctx.fillStyle='#cc4030'; ctx.fillRect(x+1, baseY-50, 22, 4); // scarf
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-66, 16, 14);
+    ctx.fillStyle='#aaa'; ctx.fillRect(x+3, baseY-68, 16, 4); // grey hair
+    ctx.fillStyle='#000'; ctx.fillRect(x+6, baseY-58, 3, 3); ctx.fillRect(x+13, baseY-58, 3, 3);
+    // wine glass
+    ctx.fillStyle='#a82020'; ctx.fillRect(x+22, baseY-46, 6, 6);
+    ctx.fillStyle='#888'; ctx.fillRect(x+24, baseY-40, 2, 6);
+    ctx.fillRect(x+22, baseY-34, 6, 2);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-52, 22, 32);
+    if (Math.sin(o.animT*0.95+o.dialogIdx) > 0.93) drawBubble(x-10, baseY-100, (o.dialog||'Wir haben ein Schloss.'), 10);
+  }
+  else if (o.type==='saarlaender'){
+    // Simple shirt + Schwenker + lyoner sausage
+    ctx.fillStyle='#3a8a3a'; ctx.fillRect(x, baseY-50, 20, 30);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+2, baseY-62, 16, 12);
+    ctx.fillStyle='#5a3014'; ctx.fillRect(x+2, baseY-64, 16, 4);
+    // Schwenker (BBQ stick)
+    ctx.strokeStyle='#5a3014'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x+22, baseY-50); ctx.lineTo(x+30, baseY-30); ctx.stroke();
+    ctx.fillStyle='#a8542a'; ctx.fillRect(x+27, baseY-34, 8, 6); // sausage on stick
+    ctx.fillStyle='#000'; ctx.fillRect(x+5, baseY-56, 3, 3); ctx.fillRect(x+12, baseY-56, 3, 3);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-50, 20, 30);
+    if (Math.sin(o.animT*1.0+o.dialogIdx) > 0.92) drawBubble(x-10, baseY-100, (o.dialog||'Saarland gibt\'s wirklich.'), 10);
+  }
+  else if (o.type==='amiSoldat'){
+    // Camo jacket, MAGA-Cap, dog tags
+    ctx.fillStyle='#5a6a3a'; ctx.fillRect(x, baseY-54, 22, 34); // camo
+    // camo dots
+    ctx.fillStyle='#3a4a20'; for (let i=0;i<6;i++) ctx.fillRect(x+2+(i%3)*7, baseY-52+Math.floor(i/3)*16, 4, 4);
+    ctx.fillStyle='#e8d0b0'; ctx.fillRect(x+3, baseY-66, 16, 14);
+    // MAGA cap
+    ctx.fillStyle='#cc1818'; ctx.fillRect(x+1, baseY-72, 20, 8);
+    ctx.fillStyle='#fff'; ctx.font='bold 4px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText('MAGA', x+11, baseY-66);
+    // dog tags
+    ctx.fillStyle='#888'; ctx.fillRect(x+9, baseY-42, 4, 6);
+    ctx.fillStyle='#000'; ctx.fillRect(x+6, baseY-58, 3, 3); ctx.fillRect(x+13, baseY-58, 3, 3);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-54, 22, 34);
+    if (Math.sin(o.animT*1.05+o.dialogIdx) > 0.93) drawBubble(x-10, baseY-100, (o.dialog||'Schvarzvald?'), 10);
+  }
   ctx.restore();
 }
 
@@ -4131,6 +4361,20 @@ const REGIONAL_NPC_KIND = {
   wanderer: 'badener',
   dog: 'badener',
   ziege: 'badener',
+  // === STAGE 2 — tourist/regional archetypes ===
+  schwabeTourist: 'schwoba',
+  preusseTourist: 'preussen',
+  franzoeseTourist: 'französisch',
+  pfaelzer: 'pfälzer',
+  hessischer: 'hessisch',
+  pforzheimer: 'pforzheimer',
+  berliner: 'preussen',
+  hamburger: 'preussen',
+  münchnerin: 'bayern',
+  karlsruher: 'badener',
+  ettlingerNachbar: 'ettlinger',
+  saarlaender: 'sachsen',  // closest-available "exotic outsider" coefficient
+  amiSoldat: 'ami',
 };
 
 // Kinds that count as a valid insult target. Excludes signs, fences,
@@ -4141,6 +4385,10 @@ const ROAST_KINDS = new Set([
   'afghanenJugend','workerKurd','bauarbeiterRO','realschüler','hochschulerin',
   'baederHandtuch','schuetze','wanderer','dog','ziege','kindFleischkaes',
   'shisha-jugend','jogger',
+  // === STAGE 2 — tourist/regional archetypes (all roast-eligible) ===
+  'schwabeTourist','preusseTourist','franzoeseTourist','pfaelzer','hessischer',
+  'pforzheimer','berliner','hamburger','münchnerin','karlsruher',
+  'ettlingerNachbar','saarlaender','amiSoldat',
 ]);
 
 // What Bin Run shouts. General pool + per-kind specials. Parodic, observed,
@@ -4525,7 +4773,71 @@ const INSULT_LINES_KIND = {
     '"Doppelkopf? Doppelt aufgegeben."','"Hookah Park isch geschlossen — und dein Hoffnungs-Park auch."',
     '"Apfelsorte heute? Apfelsaft-Energie immer."','"Wallah dein Bart isch Selbst-Behauptung."',
   ],
-  hochschulerin_extra:[], // unused, placeholder
+  // === STAGE 2 — tourist/regional kind-specific insults ===
+  schwabeTourist: [
+    '"Schaffe schaffe — Häusle nie."','"Spätzle ist nur Knöpfle ohne Anspruch."',
+    '"Cannstatter Wasen ist en Volkshochschulkurs in Saufen."','"Stuttgart 21 isch dein Lebenswerk: spät und teuer."',
+    '"Du sparsch am falschen Ende — am Ende."','"Maultaschen sind Ravioli mit Niederlage."',
+    '"Bei uns Badenern isch Tracht ein Straftatbestand. Bei euch Identität."',
+  ],
+  preusseTourist: [
+    '"In Berlin wärsch du auch nur en weiterer Anonymer."','"Wo ist das Schloss? In Karlsruhe, du Tourist."',
+    '"Späti gibt\'s nur ein Mal, du auch."','"DB-Hotline kennt dich. Persönlich."',
+    '"Brandenburger Tor isch dei einzige Anekdote."','"Friedrichshain hat dich exiliert."',
+  ],
+  franzoeseTourist: [
+    '"Le Schwarzwald ist ned dein Erbe."','"Baguette unter dem Arm — Persönlichkeit unter Null."',
+    '"Pas du tout? Pas du toi."','"Strasbourg hat angerufen. Sie wollen dich behalten."',
+    '"Beret auf dem Kopf, Niveau im Boden."',
+  ],
+  pfaelzer: [
+    '"Saumagen kennt jeder, dich keiner."','"Trolle trolle — Pälzer Witzen."',
+    '"Dei Wein riecht nach Notlage."','"Wurstmarkt ohne dich war stiller."',
+    '"Mannheim und Ludwigshafen lachen über dich."',
+  ],
+  hessischer: [
+    '"Frankfurt > alles? Außer du."','"Apfelwein isch en Bestrafung, ned en Getränk."',
+    '"Eintracht hat\'s versucht, du nicht."','"Bankenviertel fragt nach dir, sie haben einen Anschlag."',
+    '"Steuerberater wechselt jährlich, deine Sünden bleiben."',
+  ],
+  pforzheimer: [
+    '"Goldstadt hat dich verkauft."','"Schmuckindustrie kennt dich als Diebstahl-Risiko."',
+    '"\\"Geh nach Pforzheim\\" gilt für dich besonders."','"Dein Lebenslauf auf Pforzheimer Niveau ist immer noch zu wenig."',
+    '"Türsteher-Bruder hat dich nicht reingelassen."',
+  ],
+  berliner: [
+    '"Wat soll det denn? Du."','"Späti hat dich aussortiert. Auch das Ostpaket."',
+    '"In Berlin wärst du tot — vor Langeweile."','"Friedrichshain hat dich exiliert. Berechtigt."',
+    '"Boah, ne, geh weg."','"Berliner Schnauze ohne Witz, wie deine."',
+  ],
+  hamburger: [
+    '"Hardtsee ist nicht das Meer, du Hamburger."','"Fischbrötchen ohne dich war besser."',
+    '"St. Pauli hätt\' dich verprügelt — wegen dem Schal."','"Norden hält zusammen, du nicht."',
+    '"Moin nur einmal. Beim zweiten Mal Beleidigung."',
+  ],
+  münchnerin: [
+    '"Wiesn ohne dich war voller."','"Servus zu dir hört auf bei Hauptbahnhof."',
+    '"Bayern lacht über deinen Schal."','"Tracht für dich? Verschwendung."',
+    '"FC Bayern hat dich nicht gemeldet — wegen Niveaufrage."',
+  ],
+  karlsruher: [
+    '"Bundesverfassungsgericht hat dich abgewiesen."','"KIT-Bibliothek hat dei Karte gesperrt."',
+    '"Pyramide bewacht sich selbst — vor dir."','"Wir sind Karlsruhe; du bisch en Tourist."',
+  ],
+  ettlingerNachbar: [
+    '"Schloss-Verbot lebenslang."','"Schlossfestspiele ohne dich war kürzer."',
+    '"Karlsbad ist Karlsbad, du isch nichts."','"Niveau messen wir, du fällst durch."',
+  ],
+  saarlaender: [
+    '"Saarland gibt\'s wirklich — du wahrscheinlich nicht."','"Schwenker isch en Lebensaufgabe, du Pause."',
+    '"Lyoner-Liebhaber, Hauptsach billig — wie du."',
+    '"Französisches Saarland hat dich abgelehnt."',
+  ],
+  amiSoldat: [
+    '"Heidelberg-Base hat dich verloren."','"Freedom Fries sind ned Freiheit, sie sind Kartoffeln."',
+    '"Sir, you\'re embarrassing — auf Bayrisch."','"MAGA-Cap auf en Hauptschüler-Schädel: tragisch."',
+    '"Stand down, civilian — du bisch keine Bedrohung, nur peinlich."',
+  ],
 };
 
 // Lifetime anti-repeat: filter every candidate against Save.data.shownInsults.
@@ -4686,6 +4998,70 @@ const REACTION_LINES_KIND = {
     'Brudi, halt\'s Maul!','Wallah voll cringe.',
     'Hookah-Park hört davon.','Lan, geh nach Pforzheim.',
   ],
+  // === STAGE 2 — tourist/regional archetype reactions ===
+  schwabeTourist: [
+    'Bei uns in Stuttgart hätt\' man dich!','Schaffe schaffe — du nicht!',
+    'Heimatkennzeichen: kein Wunder.','Spätzle hin oder her — Frechheit!',
+    'I melde des dem Verein!','Maultaschen-Ehre verlangt Genugtuung!',
+    'Der Schwabe vergisst nicht.','Daheim bei mir hätt\' es Tracht gegeben!',
+    'Cannstatter Wasen ohne dich!',
+  ],
+  preusseTourist: [
+    'In Berlin wäre das anders!','Sie sind unverschämt!',
+    'Ich melde das der DB-Hotline!','Wo ist der Schaffner?',
+    'Das werd\' ich Frau Müller schreiben!','Pfui!',
+  ],
+  franzoeseTourist: [
+    'Mais c\'est inacceptable!','Quel scandale!','Pas du tout!',
+    'Ze polizei, oui?','Mon Dieu!','C\'est la fin!',
+  ],
+  pfaelzer: [
+    'Bei uns sin mir genauer!','Mei Wein wird sauer wegen dir!',
+    'Saumagen ohne dich, du Lump!','Trolle Trolle Pälzer Wein — du auch ned dabei!',
+    'Hau ab, Bub!','I kenn dei Tante!',
+  ],
+  hessischer: [
+    'Frankfurt hat dich aussortiert!','Mein Steuerberater wird das hören!',
+    'Eintracht gewinnt trotz dir!','Apfelwein-Stube ohne dich!',
+    'Hessen-Hausverbot!',
+  ],
+  pforzheimer: [
+    'Goldstadt hat Würde!','Ich melde es dem Schmuckverband!',
+    'Geh nach Karlsbad, du Pendler!','Mein Bruder ist Türsteher!',
+    'Pforzheim hält zusammen!',
+  ],
+  berliner: [
+    'Wat soll det denn?!','In Friedrichshain wärst du tot!',
+    'Späti hat dich aussortiert!','Boah, ne, du nicht!',
+    'Berliner Schnauze ohne Witz!',
+  ],
+  hamburger: [
+    'Das gibt\'s ja gar nicht!','Auf St. Pauli wärst du tot!',
+    'Fischbrötchen für dich verboten!','Norden hält zusammen — ohne dich!',
+    'Moin? Sag was.',
+  ],
+  münchnerin: [
+    'Bist deppert?','Bei uns hätt\' man Tracht!',
+    'Servus heißt nicht so!','Wiesn ohne dich!',
+    'Mei Schatzi mag des nicht!',
+  ],
+  karlsruher: [
+    'Bundesverfassungsgericht ist ein Anruf weg!','KIT-Bibliothek kein Zutritt für dich!',
+    'Pyramide hat dich verdrängt!','Wir sind Karlsruhe, nicht du!',
+  ],
+  ettlingerNachbar: [
+    'Schloss-Verbot!','Schlossfestspiele-Schwarze-Liste!',
+    'Karlsbad bleibt bitte da, wo es ist!','Wir haben Niveau — du nicht!',
+  ],
+  saarlaender: [
+    'Schwenker hin, Schwenker her — Frechheit!','Lyoner für dich verboten!',
+    'Saarbrücken hört das!','Mei Mudder wird das hören!',
+  ],
+  amiSoldat: [
+    'Sir, that is unacceptable!','I\'m calling Heidelberg base!',
+    'Freedom does not include this!','Get a haircut, son!',
+    'Stand down, civilian!',
+  ],
 };
 
 const REACTION_LINES_GENERIC = [
@@ -4719,19 +5095,21 @@ const Insult = {
     this.pendingTarget = null; this.pendingLine = ''; this.pendingResolveT = 0;
     this.recentLines.length = 0;
   },
-  // Find nearest visible NPC of a roast-eligible kind. Returns
-  // {kind, x, y} in screen-space, or null.
+  // Find nearest visible NPC of a roast-eligible kind. Bg.near entries
+  // use .type (not .kind) and render at 0.85x parallax. Returns
+  // {kind, x, y, xWorld} where x is screen-space at this moment and
+  // xWorld is the raw n.x for later parallax recalculation.
   findTarget(){
     if (!Bg || !Bg.near) return null;
     let best = null, bestD = Infinity;
     const px = Player.x + Player.w/2;
     for (const n of Bg.near){
-      if (!n || !n.kind) continue;
-      if (!ROAST_KINDS.has(n.kind)) continue;
-      const sx = (n.x||0) - Game.scrollX;
+      if (!n || !n.type) continue;
+      if (!ROAST_KINDS.has(n.type)) continue;
+      const sx = (n.x||0) - Game.scrollX*0.85;
       if (sx < 40 || sx > CFG.W - 40) continue;
       const d = Math.abs(sx - px);
-      if (d < bestD){ bestD = d; best = {kind:n.kind, x:sx, y:(n.y||CFG.GROUND_Y-100)}; }
+      if (d < bestD){ bestD = d; best = {kind:n.type, x:sx, y:(CFG.GROUND_Y-100), xWorld:(n.x||0)}; }
     }
     return best;
   },
@@ -4859,7 +5237,10 @@ const Insult = {
           Game.npcReactions = Game.npcReactions || [];
           Game.npcReactions.push({
             kind: this.pendingTarget.kind,
-            xWorld: Game.scrollX + this.pendingTarget.x, // anchor in world space so it stays glued to NPC
+            // Bg.near entries scroll at 0.85x parallax. xWorld is the raw
+            // world coordinate; render computes screen-x with the same
+            // 0.85x factor so the bubble glues to the NPC across frames.
+            xWorld: this.pendingTarget.xWorld,
             y: this.pendingTarget.y,
             text: rline,
             t: 0,
