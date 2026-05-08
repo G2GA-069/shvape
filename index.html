@@ -215,6 +215,30 @@ const Save = {
   },
 };
 
+// Pause-screen tip pool — real tactical advice mixed with in-character
+// asides. Random pick locks for the duration of the pause window.
+const PAUSE_TIPS = [
+  'INSULT [B] kostet 8% Vape — landet er, kriegsch 5% zurück. Nettoausgabe minimal.',
+  'Hesch en Crowd in Sichtweite? Witnesses ×3 Aura ab 5 Personen.',
+  'ROAST KETTE x3+ schüttelt den Bildschirm — Bonus +120%.',
+  'Wallah dei Wall-Slide funktioniert nur mit Strommast/Traktor/S11. Buchsbaum hilft ned.',
+  'Mama-Anruf nach Boss 5: ANNEHMEN macht Schwarzwald soft, ABLEHNEN ändert nix, IGNORIEREN macht Mutter härter.',
+  'Stealth bei 0.5s Unsichtbarkeit — DUCK frisch tippen, ned halten.',
+  'Sigh Cancel = DUCK + V. Killt Belege, Sighs, Säumniszuschläge.',
+  'Triple-Jump nur ab Tier MID. OPFER bleibt bei Doppelsprung.',
+  'Pfifferling-Sinn telegrafiert Pickups 600px voraus — am rechten Bildschirmrand glühen sie.',
+  'Frau Herta heißt dich der "Schwape-Bub". Ehrentitel.',
+  'Spätzle-Pod: cursed. Dein Aura-Tier sinkt um 1, dafür gibt\'s 35 Vape. Eine Frage der Strategie.',
+  'Heiliger-Hauch-Pod: jeder Sigma-Rule-Popup gibt +5 Aura. Selten, aber kult.',
+  'Mystery-Pod invertiert die Steuerung 5 Sekunden. Genauer hinschauen vorm Greifen.',
+  'Cassette in B8 Finanzamt einsammeln → Badnerlied am Ende. Sonst: Stille.',
+  'Mutter ist nur unbesiegbar, wenn du Hochdeutsch denkst. Hint: ehrlich sein hat einen Stern.',
+  'Daily Mutation oben: heute aktiv. Manche Tage sind echte Geschenke.',
+  '[TAB / G] auf dem Death-Screen: Vitrine deiner Erfolge.',
+  'Habibi sagt: Pfand ist Pfand. Auch heute.',
+  'Bin Run frisst Schnitzel kalt aus der gelben Tupperdose. Akzeptiers.',
+];
+
 // ===== INTRO CAPTION — personalizes the first few seconds of every run =====
 // Shows for 2.5 sec at PLAY-start: "MUTSCHELBACH · 8. Mai 2026 · BIN RUN
 // [Schwape-wince], 15." Re-armed each restart. Skipped on Act II direct
@@ -461,7 +485,7 @@ const Achv = {
       ctx.fillText(desc, x+44, y+34);
     }
     ctx.fillStyle = '#aaa'; ctx.font='10px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('[A] zum Schließen', CFG.W/2, CFG.H-16);
+    ctx.fillText('[TAB / G] zum Schließen', CFG.W/2, CFG.H-16);
   },
   draw(){
     if (!this.current && this.popQueue.length){
@@ -1675,7 +1699,9 @@ const KEY_MAP = {
   'KeyP':'pause','Escape':'pause',
   'KeyM':'mute',
   'KeyF':'respect',
-  'KeyA':'vitrine',
+  // VITRINE — death-screen achievement gallery. Tab is unbound elsewhere
+  // and convenient on a death-screen context. KeyA is reserved for WASD.
+  'Tab':'vitrine','KeyG':'vitrine',
 };
 
 window.addEventListener('keydown', e=>{
@@ -8165,14 +8191,32 @@ const HUD = {
     if (Game.paused){
       ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,CFG.W,CFG.H);
       ctx.fillStyle='#fff'; ctx.font='40px Bangers, sans-serif'; ctx.textAlign='center';
-      ctx.fillText('PAUSE', CFG.W/2, CFG.H/2 - 40);
-      ctx.font='12px "Press Start 2P"'; ctx.fillText('drücke P zum Weitermachen', CFG.W/2, CFG.H/2);
+      ctx.fillText('PAUSE', CFG.W/2, CFG.H/2 - 80);
+      ctx.font='12px "Press Start 2P"'; ctx.fillText('drücke P zum Weitermachen', CFG.W/2, CFG.H/2-50);
+      // Random tip — locks once when pause is opened, then sticks until resume
+      if (!Game._pauseTip || Game._pauseTipResumeKey !== Game.realT){
+        Game._pauseTip = choice(PAUSE_TIPS);
+        Game._pauseTipLocked = true;
+      }
+      ctx.fillStyle='#ffd633'; ctx.font='bold 11px "Press Start 2P"';
+      ctx.fillText('TIPP', CFG.W/2, CFG.H/2 - 12);
+      ctx.fillStyle='#fff'; ctx.font='10px "Press Start 2P"';
+      // wrap tip
+      const words = (Game._pauseTip||'').split(' '); let line=''; let ly = CFG.H/2 + 8;
+      for (const w of words){
+        const test = line + w + ' ';
+        if (ctx.measureText(test).width > CFG.W*0.6){ ctx.fillText(line, CFG.W/2, ly); line = w+' '; ly += 14; }
+        else line = test;
+      }
+      if (line) ctx.fillText(line, CFG.W/2, ly);
       // Bin Run idle hitting vape
-      drawBinRun(CFG.W/2 - 32, CFG.H/2 + 40, Game.realT);
+      drawBinRun(CFG.W/2 - 32, ly + 30, Game.realT);
       // ALDA cloud
       if (Math.floor(Game.realT*2)%3===0){
-        spawnParticle({x:CFG.W/2+30, y:CFG.H/2+30, vx:-30, vy:-20, size:24, color:'rgba(220,220,230,0.85)', text:'ALDA', life:1.6, maxLife:1.6});
+        spawnParticle({x:CFG.W/2+30, y:ly+50, vx:-30, vy:-20, size:24, color:'rgba(220,220,230,0.85)', text:'ALDA', life:1.6, maxLife:1.6});
       }
+    } else {
+      Game._pauseTip = null;
     }
 
     // LEGENDE state extras
@@ -8448,8 +8492,8 @@ const Death = {
     ctx.strokeText('Nochmal? [LEERTASTE]', CFG.W/2, 610);
     ctx.fillText('Nochmal? [LEERTASTE]', CFG.W/2, 610);
     ctx.font='10px "Press Start 2P"';
-    ctx.strokeText('[T] Teilen   [F] Respekt zollen   [A] Vitrine', CFG.W/2, 638);
-    ctx.fillText('[T] Teilen   [F] Respekt zollen   [A] Vitrine', CFG.W/2, 638);
+    ctx.strokeText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
+    ctx.fillText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
     // Touch button
     if (IS_TOUCH){
       ctx.fillStyle='rgba(255,214,51,0.85)'; ctx.fillRect(CFG.W/2-120, 660, 240, 50);
