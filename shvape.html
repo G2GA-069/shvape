@@ -1984,9 +1984,11 @@ function drawComicBurst(x,y,size,text){
   // halftone
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
   for (let i=0;i<8;i++){ const a = i*0.7, r=size*0.4; ctx.beginPath(); ctx.arc(x+Math.cos(a)*r*0.5, y+Math.sin(a)*r*0.5, 2, 0, Math.PI*2); ctx.fill(); }
-  // text
+  // text — auto-shrink for long shouts (insult lines) so they fit the burst
   ctx.fillStyle = '#000';
-  ctx.font = `bold ${Math.floor(size*0.55)}px Bangers, sans-serif`;
+  const len = (text||'').length;
+  const fontPx = Math.floor(size * (len > 24 ? 0.22 : len > 14 ? 0.34 : 0.55));
+  ctx.font = `bold ${fontPx}px Bangers, sans-serif`;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(text, x, y+2);
 }
@@ -4026,8 +4028,10 @@ const Insult = {
     if (this.cd > 0 || this.lockT > 0) return false;
     if (Vape.v < 12) return false;
     if (Game.auraLocked) return false;
-    const s = Game.state;
-    return (s === 'PLAY' || s === 'BOSS' || s === 'ENCOUNTER');
+    // INSULT is a PLAY-state action only. Bosses + encounters have their
+    // own bubble timing; firing inline insults inside them just produces
+    // confusion + missed targets (Bg.near is overlay'd during bosses).
+    return Game.state === 'PLAY';
   },
   reset(){
     this.cd = 0; this.lockT = 0; this.chain = 0; this.chainTimer = 0;
@@ -4076,6 +4080,10 @@ const Insult = {
       // GEGEN DIE LUFT — small aura penalty, longer cooldown.
       this.cd = 4.0;
       this.chain = 0; this.chainTimer = 0;
+    } else {
+      // First successful target-acquired insult ever in the run flips off
+      // the discovery hint banner.
+      Game._insultEverFired = true;
     }
     try{ Audio.sfx && Audio.sfx.triggerAttackRelease('A4','32n'); }catch(e){}
     return true;
@@ -4109,12 +4117,29 @@ const Insult = {
           Vape.v = Math.min(100, Vape.v + 5);
           this.cd = 2.5;
           this.chain++; this.chainTimer = 8.0;
-          if (this.chain >= 3) HUD.note(`ROAST KETTE x${this.chain}!`, '#ff66ff');
+          if (this.chain >= 3){
+            HUD.note(`ROAST KETTE x${this.chain}!`, '#ff66ff');
+            // Screen shake intensifies with chain; flash gold on chain >=3.
+            shake(6 + this.chain*1.5);
+            flash('#ffd633', 0.16);
+            try{
+              if (Audio.brass) Audio.brass.triggerAttackRelease(['E5','G5','C6'], '8n', undefined, 0.55);
+            }catch(e){}
+          } else {
+            try{
+              if (Audio.sfx) Audio.sfx.triggerAttackRelease('E5', '32n');
+              setTimeout(()=>{ try{Audio.sfx&&Audio.sfx.triggerAttackRelease('A5','32n');}catch(e){} }, 70);
+            }catch(e){}
+          }
           // populate highlight reel
           Game.highlightReel.push({id:'INLINE_INSULT', label:`Insult: ${this.pendingTarget.kind}`, aura:reward, witnesses});
           Game.highlightReel.sort((a,b)=>b.aura-a.aura);
           if (Game.highlightReel.length > 5) Game.highlightReel.length = 5;
-          comicBurst(Player.x + Player.w + 20, Player.y - 20, '!');
+          // Comic-burst the actual line as a particle so the joke lands
+          // visually too. Truncate long lines for the burst.
+          const burstLine = (this.pendingLine||'').replace(/^"|"$/g, '');
+          const short = burstLine.length > 28 ? burstLine.slice(0,26)+'…' : burstLine;
+          comicBurst(Player.x + Player.w + 30, Player.y - 30, short);
           if (navigator.vibrate) navigator.vibrate(15);
         } else {
           // No target — penalty already applied (cd=4, chain reset)
@@ -4162,21 +4187,57 @@ const Insult = {
       ctx.restore();
     } else if (Vape.v >= 12 && this.ready()){
       const pulse = 0.5 + 0.5*Math.sin(Game.realT*4);
+      const tgt = this.findTarget();
       ctx.save();
+      // brighter when an actual target is on screen
       ctx.fillStyle = '#000'; ctx.fillRect(cx-2, cy-2, 38, 38);
-      ctx.fillStyle = '#ff66aa'; ctx.fillRect(cx, cy, 34, 34);
+      ctx.fillStyle = tgt ? '#ff66aa' : '#aa4488';
+      ctx.fillRect(cx, cy, 34, 34);
       ctx.fillStyle = '#fff'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
       ctx.fillText('💬', cx+17, cy+24);
-      // small glow
-      ctx.globalAlpha = pulse * 0.5; ctx.fillStyle = '#ff66aa';
-      ctx.fillRect(cx-3, cy-3, 40, 40);
+      if (tgt){
+        // small glow only when a target is in sight
+        ctx.globalAlpha = pulse * 0.5; ctx.fillStyle = '#ff66aa';
+        ctx.fillRect(cx-3, cy-3, 40, 40);
+      }
+      ctx.restore();
+    } else if (Vape.v < 12 && Game.state === 'PLAY'){
+      // Locked because Vape too low — explicit "GESPERRT" cue.
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(cx-2, cy-2, 38, 38);
+      ctx.fillStyle = '#444'; ctx.fillRect(cx, cy, 34, 34);
+      ctx.fillStyle = '#ff8a30'; ctx.font='bold 16px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('💬', cx+17, cy+24);
+      // diagonal slash for "locked"
+      ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cx, cy+34); ctx.lineTo(cx+34, cy); ctx.stroke();
       ctx.restore();
     }
     // Chain banner
     if (this.chain >= 2){
-      ctx.fillStyle = '#000'; ctx.fillRect(20, 110, 220, 22);
-      ctx.fillStyle = '#ff66ff'; ctx.font='bold 11px "Press Start 2P"'; ctx.textAlign='left';
+      const w = 240;
+      ctx.fillStyle = '#000'; ctx.fillRect(20, 110, w, 22);
+      ctx.fillStyle = this.chain >= 3 ? '#ffd633' : '#ff66ff';
+      ctx.font='bold 11px "Press Start 2P"'; ctx.textAlign='left';
       ctx.fillText(`ROAST KETTE x${this.chain}`, 30, 126);
+      // bonus indicator
+      if (this.chain >= 3){
+        ctx.fillStyle = '#fff'; ctx.font='bold 9px "Press Start 2P"';
+        ctx.fillText(`+${Math.floor(this.chain*40)}% BONUS`, 30+w-110, 126);
+      }
+    }
+    // First-run discovery hint — show 8s after first PLAY frame if no
+    // insult has fired yet AND Vape ≥ 12 AND a target is on screen.
+    if (!Game._insultEverFired && Game.realT > 8 && Game.realT < 30 && Game.state === 'PLAY' && Vape.v >= 12 && this.findTarget()){
+      const t = Game.realT;
+      const a = 0.6 + 0.4*Math.sin(t*4);
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#000'; ctx.fillRect(CFG.W/2 - 240, 88, 480, 36);
+      ctx.fillStyle = '#ff66aa'; ctx.fillRect(CFG.W/2 - 238, 90, 476, 32);
+      ctx.fillStyle = '#fff'; ctx.font='bold 12px "Press Start 2P"'; ctx.textAlign='center';
+      ctx.fillText('💬 [B] / pinker Knopf — beleidige NPCs für Aura!', CFG.W/2, 112);
+      ctx.restore();
     }
   }
 };
@@ -8326,6 +8387,7 @@ function resetForNewRun(){
   // STAGE 2 — Insult state
   if (typeof Insult !== 'undefined') Insult.reset();
   if (Input){ Input.insultBuffer = 0; Input.touchInsult = false; }
+  Game._insultEverFired = false;
   Game.transgressionRevenue = 0;
   Game.transgressionAuraTotal = 0;
   Game.transgressionsCount = 0;
