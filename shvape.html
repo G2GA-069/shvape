@@ -377,7 +377,7 @@ const HERTA_BUBBLES = [
 // === ZONE SYSTEM — changing scenery as the run progresses ===
 const ZONES = [
   { name:'MUTSCHELBACH',           start:0,   sky:'#7ec0ee', signs:SIGNS_MUTSCHELBACH,
-    midPool:[['fachwerk',3],['kirche',2],['ebeka',2],['tree',3],['gasthof',1]],
+    midPool:[['fachwerk',3],['kirche',2],['edeka',2],['tree',3],['gasthof',1]],
     nearPool:[['sign',3],['oma',2],['gartenzwerg',2],['fence',2],['dog',1],['lederhose',1],['rentnerBank',2],['badischOma',2],['imker',1]] },
   { name:'KARLSBAD-LANGENSTEINBACH', start:75, sky:'#9ad0ee', signs:SIGNS_LANGENSTEINBACH,
     midPool:[['fachwerk',1],['realschule',3],['barbara-kirche',2],['doner',3],['baeckerei',2],['s11',2],['shisha',1]],
@@ -406,8 +406,215 @@ function pickWeighted(pool){
   for (const [t, w] of pool){ r -= w; if (r<=0) return t; }
   return pool[0][0];
 }
+function shuffleArr(a){
+  for (let i=a.length-1;i>0;i--){ const j = Math.floor(RNG()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
+  return a;
+}
 let _lastZoneName = null;
 let _zoneBannerT = 0;
+
+// === REAL LOCAL SHOP NAMES — sourced from public Mutschelbach/Karlsbad/
+//     Ettlingen/Waldbronn business listings; mixed with regional chains
+//     and a few parodic ones. Keyed by (mid-type, zone-name).
+//     Bg.spawnMid pulls a name from a deck so we don't repeat within
+//     a session in the same zone.
+const SHOP_NAMES = {
+  edeka: {
+    'MUTSCHELBACH':              ['Edeka Schmidt','Edeka Petershofen','Penny','Nahkauf'],
+    'KARLSBAD-LANGENSTEINBACH':  ['Edeka Strobel','Edeka Schäfer','Penny Markt','Aldi Süd','Lidl Karlsbad','Norma','dm-Drogerie','Müller'],
+    'ETTLINGEN — MARKTPLATZ':    ['Edeka Center','Penny','Aldi','Rewe Wendelstein','Treff 3000','Rossmann','dm-Ettlingen','Müller'],
+    'WALDBRONN — ALBTAL-THERME': ['Edeka Reichenbach','Rewe','dm-Waldbronn'],
+    'VÖLKERSBACH / SCHWARZWALD-RAND': ['Hofladen Spielberg'],
+    'INDUSTRIEGEBIET ITTERSBACH':['Werkskantine Bosch','Rewe Express'],
+  },
+  baeckerei: {
+    'MUTSCHELBACH':              ['Bäckerei Häußler','Bäckerei Mahler','Café Schreckenberger'],
+    'KARLSBAD-LANGENSTEINBACH':  ['Bäckerei Görtz','Bäckerei Seitz','Bäckerei Sehne','Bäcker Petershofen','Brot & Butter','Café Engel'],
+    'ETTLINGEN — MARKTPLATZ':    ['Bäckerei Treiber','Bäckerei Görtz','Schmid Beck','Café Mahler','Konditorei Erbprinz','Brezel-Roman'],
+    'WALDBRONN — ALBTAL-THERME': ['Bäckerei Schwarz','Schmid Beck','Café am Kurpark'],
+    'VÖLKERSBACH / SCHWARZWALD-RAND': ['Hofbäckerei Spielberg','Bäckerei Müller'],
+  },
+  doner: {
+    'KARLSBAD-LANGENSTEINBACH':  ['Anatolia Grill','Mr. Kebap','Sultan-Imbiss','Eskişehir Döner','Pinar','Kebab-Haus 24','City Döner'],
+    'ETTLINGEN — MARKTPLATZ':    ['Memo Döner','Pinar Kebap','Bilal Pizza','Halil Imbiss','Yeşilköy'],
+    'INDUSTRIEGEBIET ITTERSBACH':['Schicht-Imbiss','Mehmet am Werk','Kantine 4'],
+  },
+  shisha: {
+    'KARLSBAD-LANGENSTEINBACH':  ['Sultan-Lounge','Pasha Shisha','Babylon Lounge','Anatolia Cafe'],
+    'ETTLINGEN — MARKTPLATZ':    ['Hookah Park','Bagdad Lounge','Smoke & Soul'],
+  },
+  gasthof: {
+    'MUTSCHELBACH':              ['Gasthof Krone','Gasthof Sonne','Zur Linde','Schützenhaus'],
+    'VÖLKERSBACH / SCHWARZWALD-RAND': ['Zum Hirsch','Forsthaus Spielberg','Gasthof Adler','Schwanen-Gut'],
+    'ETTLINGEN — MARKTPLATZ':    ['Ratskeller','Hotel Erbprinz','Café Roma','Vogelbräu'],
+    'WALDBRONN — ALBTAL-THERME': ['Hotel Lamm','Gasthof Drei Linden'],
+  },
+  kirche: {
+    'MUTSCHELBACH':              ['Ev. Kirche Mutschelbach','Pfarrhaus'],
+    'VÖLKERSBACH / SCHWARZWALD-RAND': ['St. Markus Völkersbach','Kapelle am Berg'],
+  },
+  'barbara-kirche': {
+    'KARLSBAD-LANGENSTEINBACH':  ['St. Barbara','Pfarrgemeinde Langensteinbach'],
+  },
+  weingut: {
+    'VÖLKERSBACH / SCHWARZWALD-RAND': ['Weingut Spielberg','Weingut Kraut','Weingut Vetter','Hofkellerei Heim'],
+  },
+  kuckuck: {
+    'VÖLKERSBACH / SCHWARZWALD-RAND': ['Junghans Werkstatt','Schwarzwaldatelier','Kuckucks-Manufaktur Heim','Uhren Trögele'],
+  },
+  realschule: {
+    'KARLSBAD-LANGENSTEINBACH':  ['Realschule Karlsbad','Werkrealschule','Berufsschule Albtal'],
+  },
+  bosch: {
+    'INDUSTRIEGEBIET ITTERSBACH':['Bosch Engineering','Bosch Karlsbad','Robert Bosch GmbH'],
+  },
+  fabrik: {
+    'INDUSTRIEGEBIET ITTERSBACH':['Zentec','Walther Werke','Scheufelen Logistik','Karlsbader Werke','Maschinenbau Heinz','SEW Eurodrive'],
+  },
+  halle: {
+    'INDUSTRIEGEBIET ITTERSBACH':['Logistik Süd','Lager 4','DLG Maschinenring','Spedition Müller','Container-Hof','Werk II'],
+  },
+  therme: {
+    'WALDBRONN — ALBTAL-THERME': ['Albtal-Therme','Sole-Welt','Sauna-Welt'],
+  },
+  kurhaus: {
+    'WALDBRONN — ALBTAL-THERME': ['Kurhaus Waldbronn','Reha-Klinik Schwarzwald','Sanatorium','Kneipp-Verein'],
+  },
+  'schloss-mid': {
+    'ETTLINGEN — MARKTPLATZ':    ['Schloss Ettlingen','Schloss-Café','Hofgarten'],
+  },
+  marktplatz: {
+    'ETTLINGEN — MARKTPLATZ':    ['Wochenmarkt','Bauer Walz','Bio-Stand Müller','Käse-Eck'],
+  },
+  eismann: {
+    'MUTSCHELBACH':              ['Eiscafé Venezia','Eis Maria'],
+    'ETTLINGEN — MARKTPLATZ':    ['Eis Capri','Gelato Roma','Eis Roberto','La Dolce Vita'],
+    'WALDBRONN — ALBTAL-THERME': ['Eis am Kurpark','Gelateria Etzenrot'],
+  },
+};
+
+// === DEEP NPC DIALOGUE POOLS — each NPC instance gets one assigned line.
+//     Bg.spawnNear pulls from a per-type deck and reshuffles when empty,
+//     so the same NPC line never appears twice in a row across the run.
+const NPC_DIALOG_POOLS = {
+  badischOma: [
+    "Hesch des gsehe?","Mei mei mei!","Bei uns dahaim!","Was soll des werra?",
+    "Der Lausbub!","So a Schand!","I sag's halt.","Bub, wo gehsch?",
+    "Du bisch ned vo hier, gell?","Wo isch dei Mutter?","Sodd net so, gell!",
+    "Damals isch des anderscht gsi.","Dees git's doch ned.","Hosch g'hört?",
+    "Naa, also nee!","Bub, abputze!","Mei Buwe, mei Buwe.",
+  ],
+  imbissOnkel: [
+    "Lan, mit alles?","Habibi, was darf's sein?","Mit scharf, ja?","Komm rein, Brudi!",
+    "Schnell schnell, Junge!","Mit Soße alles?","Eins fünfzig!","Wallah, frisch!",
+    "Pfand kannst du gleich da geben.","Justin war heut nicht hier.","Cocktail oder Knoblauch?",
+    "Yufka oder Brot?","Mit Salat? Klar mit Salat.","Heut Abend Pinar.",
+    "Mein Sohn macht Abi, hast du gehört?","Ohne Zwiebel? Du bist verliebt, ja?",
+  ],
+  afghanenJugend: [
+    "Brudi, was geht?","Yallah!","Sheesh!","Wahllah, krass!","Same, lan!",
+    "Gönn dir, digga!","Bist du sicher?","Ich schwör Brudi.","L für dich.",
+    "Hast du Para?","Sigma move.","Bro, Bushaltestelle?","Ich verkaufe Pfand.",
+    "Murat hat gefragt.","Vater ist heute streng.","Wir sehen uns an Justin's Bushaltestelle.",
+    "Bro you got rizz.","Aura is high today.",
+  ],
+  spaetiOnkel: [
+    "Drei Euro vierzig.","Pfand zurück, da.","Du brauchst was?",
+    "Karte? Nur ab zehn Euro.","Justin schuldet noch.","Kein Verkauf an unter 16.",
+    "Mein Sohn ist auch 15. Du bist 18, ja?","Bargeld bevorzugt.",
+    "Pfandflasche da ist aus 2003.","Geh nach Hause, Junge.","Hast du Hausaufgaben?",
+    "Deine Mutter war heute hier.","Justin hat Kaugummi geklaut.","Sechs Cent fehlen.",
+  ],
+  bauarbeiterRO: [
+    "Salutare!","Hai noroc!","Mehr Kaffee, ja?","Ce faci?","Pause!",
+    "Schaufel weg, Junge.","Mein Bagger steht da.","La revedere!",
+    "Heute Maultaschen Kantine.","Bin Run? Asta e cine?","Schicht bis 17:00.",
+    "Helm aufsetzen!","Romania > Germania, da bei Fußball.","Mâine pause.",
+  ],
+  rentnerBank: [
+    "Heutzutage!","Zu meiner Zeit...","Dees git's doch ned!","Jaja...","Hmpf.",
+    "I sag's halt.","Bei uns hot des nia geba.","Der Bub schon wieder.",
+    "Frieher war alles besser.","Hesch g'sehe, Manfred?","Das gibt's doch wirklich nicht.",
+    "Manfred, gib mal die Zeitung.","Ich war auch jung.","Aber so?","Nee, also nee.",
+    "Erbsensuppe heute.","Tagesschau läuft gleich.",
+  ],
+  rentnerNordic: [
+    "Schwitz! 6,5 km/h!","Nordic-Walking-Pass.","Du machst nicht mit?",
+    "Ich gehe noch zum Kneipp-Becken!","Stockwechsel!","Brustpolster nicht vergessen!",
+    "Rentnergruppe Mittwoch 8:00!","Marathon nächste Woche.","Albgaubad zu kalt heute.",
+  ],
+  salomonJogger: [
+    "Beep — 6.0 km/h!","Tempo, Bub!","Ich laufe Marathon nächste Woche.","Trainingseffekt!",
+    "Pulsuhr 162.","Garmin sagt: weiter!","Ich war 1987 in Frankfurt dabei.",
+    "Compression-Socken sind das A und O.","Streckenrekord Albtal!",
+  ],
+  eismannRoberto: [
+    "Bellissimo, Bin Run!","Ciao bella!","Una pallina, sì?","Oh mamma mia!",
+    "Stracciatella?","Pistazie heute frisch.","Buon giorno!",
+    "Aspetta, ich gebe dir extra.","Justin hat fünf Kugeln gehabt!","Mannaggia!",
+    "Sì sì, mit Sahne.","Senza glutine? Auch da.","Tuo papà war heute hier.",
+  ],
+  workerKurd: [
+    "Schichtende!","Mehr Maultaschen!","Bus zum Werk verpasst.","Ich hab Hunger.",
+    "Bosch heute Überstunden.","Pause! Çay!","Grüß deine Mama von mir.",
+    "Justin's Vater arbeitet bei uns.","Werkbus 16:42 raus.",
+  ],
+  hochschulerin: [
+    "Klausur in zwei Tagen.","KIT-Bibliothek bis 22:00.","Hast du Deutsch verstanden?",
+    "Lerngruppe?","Soft skills, lol.","BWL ist ein Fehler.","Mein Praktikum bei Bosch.",
+    "Mensa heute Maultaschen.","Eltern-Wohnung in Ettlingen.","Erasmus war krass.",
+  ],
+  'shisha-jugend': [
+    "Apfelsorte heute.","Sultan-Lounge 21:00.","Habibi rauchen wir Doppelkopf.",
+    "Hookah Park geschlossen.","Mein Bruder war schon dort.","Discount für Stammgäste.",
+  ],
+  marktstand: [
+    "Erdbeeren! Eigene Ernte!","Tomaten, sechs Euro!","Frisches Brot!",
+    "Heute Spargel im Angebot!","Die Karotten sind aus eigenem Garten.","Bio? Was ist Bio.",
+    "Fünfzig Cent das Stück.","Kannst du auch ohne Pfand!",
+  ],
+  wanderer: [
+    "Schwarzwaldhochstraße!","Gipfelkreuz erreicht!","Hier ist der Klingenpfad!",
+    "Mitglied seit 1987.","Mein Wanderstock ist aus Eichenholz.","20 Kilometer geschafft.",
+    "Goldsteig nächste Woche.","Vesper-Pause!","Hesch d' Aussicht gsehe?",
+    "Salomon-Schuhe, neu.","Schwarzwaldverein 1864.","Ich kenne jeden Stein.",
+  ],
+  imker: [
+    "Honig direkt vom Bauer!","Bienen sind wichtig!","Vorsicht — Stachel!",
+    "Heute Honigschleuder!","Königin ist ausgeflogen.","Drohnen sind faul.",
+    "Mein Volk Nr. 7 hat 30kg.","Stachel weg, Mitglied!","Königliches Gelée?",
+  ],
+  schuetze: [
+    "Nicht im Anzug!","Königswettkampf nächsten Sonntag.","Mein Schießstand.",
+    "Tradition seit 1886.","Hand vom Karabiner!","Mitglied? Ja oder nein!",
+    "Schützenfest am 14.","Junior-Wettkampf nächste Woche.",
+  ],
+  ziege: ["Mäh.","Mä-äh.","Määäh!","Mehhh.","Mäh?","Mä."],
+  baederHandtuch: [
+    "Wellness!","Das Solebecken ist göttlich.","Sauna leer heute.",
+    "85 Grad, mein Limit!","Aufguss um 14:00.","Kneipp danach!",
+    "Mit Therme-Card 50% Rabatt.","Im Aroma-Becken war ich auch schon.",
+  ],
+  realschüler: [
+    "Yo!","Sup digga!","Hast du Zeit?","Sigma.","Brudi, was geht?","Bushaltestelle?",
+    "Mathe morgen.","Habt ihr Hausaufgaben?","Frau Müller hat schlechte Laune.",
+    "Wallah voll cringe.","Sport fällt aus.","Bist du auf Insta?",
+  ],
+  oma: [
+    "So eine Schande!","Junge, was machst du?","Mein Rollator ist neu!","Pass auf, Bub!",
+    "Frieher war alles besser!","Heutzutage!","Du Lump!","Komm bei Oma vorbei.",
+    "Mein Enkel ist auch 15.","Ich rufe dein Mutti.",
+  ],
+  lederhose: [
+    "Hier wird gegrillt, nicht gedampft!","Bratwurst dauert noch zwei Minuten.",
+    "Wo ist mein Pils?","Senf oder Ketchup?","Maultaschen-Tag heute!",
+  ],
+  dog: ["WUFF!","Wuff wuff!","Grrrr!","Wau!","Wuufff!"],
+  jogger: ["Hach!","Schnauf!","6,2!","Tempo!","Pulsuhr 175!"],
+  kindFleischkaes: ["...","mhm","oma hat gesagt","mama!","wo ist papa","mehr ketchup"],
+  gabelstapler: ["Stapler kommt!","Vorsicht!","Achtung Stapler!","Letzte Schicht!"],
+  warnschild: ["!","ACHTUNG","STOP","BAUSTELLE"],
+};
 
 const KRASS_TIERS = [
   {min:0,   label:"NO AURA",    color:"#888",       mul:0.5, face:":("},
@@ -1551,6 +1758,19 @@ const Bg = {
   mid: [],   // houses, trees
   near: [],  // signs, NPCs, fences
   layerSeed: 0,
+  // Deck-shuffled queues — drained on spawn, refilled when empty.
+  // Keys: shopDecks  -> "<midType>|<zoneName>"
+  //       dialogDecks -> NPC type
+  //       signDecks   -> zone name
+  _shopDecks: {},
+  _dialogDecks: {},
+  _signDecks: {},
+  _drawFromDeck(deckMap, key, fullPool){
+    if (!deckMap[key] || deckMap[key].length === 0){
+      deckMap[key] = shuffleArr(fullPool.slice());
+    }
+    return deckMap[key].pop();
+  },
   init(){
     // pre-populate
     for (let x=0;x<CFG.W*2;x+=rand(220,360)) this.spawnFar(x);
@@ -1559,7 +1779,6 @@ const Bg = {
   },
   spawnFar(x){
     const z = currentZone();
-    // Far layer follows zone: fields/hills/schloss-silhouette/factory-skyline/forest
     const map = {
       'MUTSCHELBACH':['hills','vineyard','hills'],
       'KARLSBAD-LANGENSTEINBACH':['hills','hills','mountain'],
@@ -1573,13 +1792,31 @@ const Bg = {
     this.far.push({x, type, h: rand(120, 220), seed: RNG()});
   },
   spawnMid(x){
-    const type = pickWeighted(currentZone().midPool);
-    this.mid.push({x, type, seed: RNG(), animT: RNG()*10});
+    const z = currentZone();
+    const type = pickWeighted(z.midPool);
+    // If this shop type has zone-specific real names, pull a unique one
+    // from the deck so it doesn't repeat within the same zone visit.
+    let name = null;
+    const namePool = (SHOP_NAMES[type] || {})[z.name];
+    if (namePool && namePool.length){
+      name = this._drawFromDeck(this._shopDecks, type+'|'+z.name, namePool);
+    }
+    this.mid.push({x, type, name, seed: RNG(), animT: RNG()*10});
   },
   spawnNear(x){
     const z = currentZone();
     const type = pickWeighted(z.nearPool);
-    this.near.push({x, type, text: choice(z.signs), seed: RNG(), animT: 0, dialogIdx: Math.floor(RNG()*100)});
+    // Per-zone sign pool — also deck-shuffled so we don't see the same
+    // sign twice while passing through the same zone.
+    const signText = this._drawFromDeck(this._signDecks, z.name, z.signs);
+    // Per-NPC-type dialogue — pre-assigned at spawn so it's stable across
+    // re-renders, and never repeats while there are unused lines.
+    let dialog = null;
+    const dialogPool = NPC_DIALOG_POOLS[type];
+    if (dialogPool && dialogPool.length){
+      dialog = this._drawFromDeck(this._dialogDecks, type, dialogPool);
+    }
+    this.near.push({x, type, text: signText, dialog, seed: RNG(), animT: 0, dialogIdx: Math.floor(RNG()*100)});
   },
   update(dt){
     const sx = Game.scrollX;
@@ -1616,30 +1853,40 @@ const Bg = {
     grad.addColorStop(0, sky);
     grad.addColorStop(1, '#cfe9f7');
     ctx.fillStyle = grad; ctx.fillRect(0,0,CFG.W,CFG.H);
-    // sun
+    // sun (drawn before blur)
     ctx.fillStyle = 'rgba(255,235,150,0.7)';
     ctx.beginPath(); ctx.arc(CFG.W*0.78, 130, 50, 0, Math.PI*2); ctx.fill();
-    // far
+
+    // === BG BLUR — depth-of-field so the play surface reads clearly ===
+    // Far + mid layers get a strong blur + desaturation. The player will see
+    // them as "out there", clearly distinct from the sharp foreground where
+    // jumpable obstacles live.
+    ctx.save();
+    ctx.filter = 'blur(2.4px) saturate(0.55) brightness(0.92)';
     for (const o of this.far) drawFar(o);
-    // mid
     for (const o of this.mid) drawMid(o);
-    // ground
+    ctx.restore();
+
+    // Ground stays sharp — it's the play surface
     ctx.fillStyle = COLORS.ground;
     ctx.fillRect(0, CFG.GROUND_Y, CFG.W, CFG.H-CFG.GROUND_Y);
-    // road/path
     ctx.fillStyle = '#7d6240';
     ctx.fillRect(0, CFG.GROUND_Y, CFG.W, 8);
     ctx.strokeStyle = '#000'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.moveTo(0,CFG.GROUND_Y); ctx.lineTo(CFG.W, CFG.GROUND_Y); ctx.stroke();
-    // grass tufts (scrolled)
     ctx.fillStyle = COLORS.groundDark;
     const gOff = (Game.scrollX*0.85) % 40;
     for (let xx=-gOff; xx<CFG.W; xx+=40){
       ctx.beginPath();
       ctx.moveTo(xx, CFG.GROUND_Y+4); ctx.lineTo(xx+4, CFG.GROUND_Y); ctx.lineTo(xx+8, CFG.GROUND_Y+4); ctx.fill();
     }
-    // near layer
+
+    // Near layer — light blur so signs/NPCs are still readable but
+    // unmistakably "behind" the obstacle plane.
+    ctx.save();
+    ctx.filter = 'blur(1.2px) saturate(0.78)';
     for (const o of this.near) drawNear(o);
+    ctx.restore();
   }
 };
 
@@ -1764,13 +2011,26 @@ function drawMid(o){
     ctx.beginPath(); ctx.arc(x+190, baseY-12, 8, 0, Math.PI*2); ctx.fill();
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-70, 220, 50);
     ctx.fillStyle='#000'; ctx.font='10px "Press Start 2P"'; ctx.fillText('S11', x+8, baseY-50);
-  } else if (o.type==='ebeka'){
-    ctx.fillStyle='#fff'; ctx.fillRect(x, baseY-90, 130, 90);
-    ctx.fillStyle='#e30613'; ctx.fillRect(x, baseY-90, 130, 22);
-    ctx.fillStyle='#fff'; ctx.font='bold 16px "Press Start 2P"'; ctx.textAlign='center'; ctx.fillText('EBEKA', x+65, baseY-72);
-    ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.strokeRect(x, baseY-90, 130, 90);
-    ctx.fillStyle='#88c0e0'; ctx.fillRect(x+10, baseY-60, 50, 40);
-    ctx.fillRect(x+70, baseY-60, 50, 40);
+  } else if (o.type==='edeka'){
+    // Real Edeka livery: yellow band + blue text. The 'name' may be Edeka,
+    // Penny, Aldi, Rewe, Lidl, dm, Müller, etc. — adjust the band colour
+    // to fit obvious chains; otherwise default to Edeka yellow.
+    const label = (o.name || 'Edeka').toUpperCase();
+    let band = '#fbb71a', textCol = '#1862c5'; // Edeka default
+    if (/PENNY/.test(label))       { band='#cc1316'; textCol='#fff'; }
+    else if (/ALDI/.test(label))   { band='#1862c5'; textCol='#ffd633'; }
+    else if (/REWE/.test(label))   { band='#cc0033'; textCol='#fff'; }
+    else if (/LIDL/.test(label))   { band='#003189'; textCol='#ffe14a'; }
+    else if (/^DM/.test(label) || /\bDM\b/.test(label)) { band='#fff'; textCol='#003366'; }
+    else if (/MÜLLER|MUELLER/.test(label)) { band='#cc0000'; textCol='#fff'; }
+    else if (/NORMA/.test(label))  { band='#cc0000'; textCol='#fff'; }
+    else if (/ROSSMANN/.test(label)){ band='#c80024'; textCol='#fff'; }
+    ctx.fillStyle='#fff'; ctx.fillRect(x, baseY-90, 150, 90);
+    ctx.fillStyle = band; ctx.fillRect(x, baseY-90, 150, 24);
+    ctx.fillStyle = textCol; ctx.font = `bold ${label.length > 10 ? 10 : 13}px "Press Start 2P"`; ctx.textAlign='center';
+    ctx.fillText(label, x+75, baseY-72);
+    ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.strokeRect(x, baseY-90, 150, 90);
+    ctx.fillStyle='#88c0e0'; ctx.fillRect(x+10, baseY-60, 60, 40); ctx.fillRect(x+80, baseY-60, 60, 40);
   } else if (o.type==='gasthof'){
     // Gasthof Krone — half-timbered with wooden sign hanging
     ctx.fillStyle='#fff7e0'; ctx.fillRect(x, baseY-110, 110, 110);
@@ -1782,16 +2042,17 @@ function drawMid(o){
     ctx.fillStyle='#3a2310'; ctx.fillRect(x+50, baseY-90, 4, 30);
     ctx.fillStyle='#fce04a'; ctx.fillRect(x+30, baseY-60, 50, 18);
     ctx.strokeRect(x+30, baseY-60, 50, 18);
-    ctx.fillStyle='#000'; ctx.font='6px "Press Start 2P"'; ctx.textAlign='center'; ctx.fillText('KRONE', x+55, baseY-48);
+    ctx.fillStyle='#000'; ctx.font='6px "Press Start 2P"'; ctx.textAlign='center';
+    const gName = (o.name || 'Krone').toUpperCase();
+    ctx.fillText(gName.length>8?gName.slice(0,8):gName, x+55, baseY-48);
   } else if (o.type==='realschule'){
-    // 70s-era functional school building
     ctx.fillStyle='#d8d0b8'; ctx.fillRect(x, baseY-120, 180, 120);
     ctx.fillStyle='#a8a090'; ctx.fillRect(x, baseY-130, 180, 10);
     ctx.fillStyle='#4a6e8e';
     for (let r=0;r<3;r++) for (let c=0;c<5;c++) ctx.fillRect(x+15+c*32, baseY-110+r*32, 22, 18);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-120, 180, 120);
     ctx.fillStyle='#000'; ctx.font='8px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('REALSCHULE', x+90, baseY-128);
+    ctx.fillText((o.name||'REALSCHULE').toUpperCase(), x+90, baseY-128);
   } else if (o.type==='barbara-kirche'){
     // Catholic Sankt-Barbara — different from Mutschelbach evangelisch
     ctx.fillStyle='#e8d8b8'; ctx.fillRect(x, baseY-140, 90, 140);
@@ -1808,8 +2069,8 @@ function drawMid(o){
     ctx.fillStyle='#ff7700'; ctx.fillRect(x, baseY-100, 120, 26);
     ctx.fillStyle='#0a7a2a'; ctx.fillRect(x, baseY-100, 120, 6);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-100, 120, 100);
-    ctx.fillStyle='#fff'; ctx.font='bold 10px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('DÖNER', x+60, baseY-82);
+    ctx.fillStyle='#fff'; ctx.font='bold 9px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText((o.name||'DÖNER').toUpperCase().slice(0,14), x+60, baseY-82);
     // Counter window
     ctx.fillStyle='#222'; ctx.fillRect(x+10, baseY-65, 100, 30);
     // Vertical Döner-Spieß
@@ -1823,7 +2084,7 @@ function drawMid(o){
     ctx.fillStyle='#2a1a3a'; ctx.fillRect(x, baseY-100, 130, 100);
     ctx.fillStyle='#aa44dd'; ctx.fillRect(x, baseY-100, 130, 24);
     ctx.fillStyle='#fff'; ctx.font='bold 8px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('SHISHA-LOUNGE', x+65, baseY-84);
+    ctx.fillText((o.name||'SHISHA-LOUNGE').toUpperCase().slice(0,14), x+65, baseY-84);
     ctx.fillStyle='#3a2a4a'; ctx.fillRect(x+20, baseY-60, 90, 50);
     // little shisha icon
     ctx.fillStyle='#aa44dd'; ctx.beginPath(); ctx.arc(x+65, baseY-30, 8, 0, Math.PI*2); ctx.fill();
@@ -1834,8 +2095,8 @@ function drawMid(o){
   } else if (o.type==='baeckerei'){
     ctx.fillStyle='#fff7e0'; ctx.fillRect(x, baseY-90, 110, 90);
     ctx.fillStyle='#a8542a'; ctx.fillRect(x, baseY-90, 110, 22);
-    ctx.fillStyle='#fff'; ctx.font='bold 9px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('BÄCKEREI', x+55, baseY-74);
+    ctx.fillStyle='#fff'; ctx.font='bold 8px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText((o.name||'BÄCKEREI').toUpperCase().slice(0,14), x+55, baseY-74);
     ctx.fillStyle='#88c0e0'; ctx.fillRect(x+10, baseY-60, 90, 40);
     // pretzel in window
     ctx.strokeStyle='#a8542a'; ctx.lineWidth=2;
@@ -1844,8 +2105,8 @@ function drawMid(o){
   } else if (o.type==='bosch'){
     ctx.fillStyle='#aab0b8'; ctx.fillRect(x, baseY-130, 200, 130);
     ctx.fillStyle='#e30613'; ctx.fillRect(x, baseY-130, 200, 30);
-    ctx.fillStyle='#fff'; ctx.font='bold 16px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('BOCH', x+100, baseY-110);
+    ctx.fillStyle='#fff'; ctx.font='bold 12px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText((o.name||'BOSCH').toUpperCase().slice(0,16), x+100, baseY-110);
     // factory windows
     ctx.fillStyle='#3a4a5a';
     for (let i=0;i<6;i++) ctx.fillRect(x+10+i*30, baseY-90, 22, 50);
@@ -1873,8 +2134,8 @@ function drawMid(o){
     // Albtal-Therme — pastel + steam
     ctx.fillStyle='#d8eafa'; ctx.fillRect(x, baseY-110, 180, 110);
     ctx.fillStyle='#b8d8e8'; ctx.fillRect(x, baseY-110, 180, 24);
-    ctx.fillStyle='#fff'; ctx.font='bold 9px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('ALBTAL-THERME', x+90, baseY-94);
+    ctx.fillStyle='#fff'; ctx.font='bold 8px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText((o.name||'ALBTAL-THERME').toUpperCase().slice(0,16), x+90, baseY-94);
     // pool window
     ctx.fillStyle='#5fb8e0'; ctx.fillRect(x+15, baseY-80, 150, 60);
     // steam
@@ -1885,7 +2146,7 @@ function drawMid(o){
     // mansard roof
     ctx.fillStyle='#5a3a25'; ctx.fillRect(x-4, baseY-130, 138, 14);
     ctx.fillStyle='#fff'; ctx.font='bold 8px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('KURHAUS', x+65, baseY-104);
+    ctx.fillText((o.name||'KURHAUS').toUpperCase().slice(0,14), x+65, baseY-104);
     ctx.fillStyle='#88c0e0';
     for (let i=0;i<4;i++) ctx.fillRect(x+10+i*30, baseY-90, 22, 30);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-120, 130, 120);
@@ -1910,7 +2171,7 @@ function drawMid(o){
     ctx.fillStyle='#88c0e0';
     for (let r=0;r<3;r++) for (let c=0;c<4;c++) ctx.fillRect(x+50+c*30, baseY-130+r*40, 18, 28);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-150, 180, 150);
-    ctx.fillStyle='#000'; ctx.font='6px "Press Start 2P"'; ctx.textAlign='center'; ctx.fillText('SCHLOSS', x+90, baseY-156);
+    ctx.fillStyle='#000'; ctx.font='6px "Press Start 2P"'; ctx.textAlign='center'; ctx.fillText((o.name||'SCHLOSS').toUpperCase().slice(0,16), x+90, baseY-156);
   } else if (o.type==='marktplatz'){
     // Market stalls with tents
     ctx.fillStyle='#d8d0b8'; ctx.fillRect(x, baseY-30, 160, 30);
@@ -1928,7 +2189,7 @@ function drawMid(o){
     ctx.fillStyle='#0a8c2a'; ctx.fillRect(x, baseY-90, 36, 22);
     ctx.fillStyle='#cc2030'; ctx.fillRect(x+74, baseY-90, 36, 22);
     ctx.fillStyle='#000'; ctx.font='bold 8px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.fillText('CAPRI', x+55, baseY-74);
+    ctx.fillText((o.name||'CAPRI').toUpperCase().slice(0,14), x+55, baseY-74);
     // ice cream cones in window
     for (let i=0;i<3;i++){
       const cx = x+25+i*30;
@@ -2060,7 +2321,7 @@ function drawNear(o){
     // handbag
     ctx.fillStyle='#5a3014'; ctx.fillRect(x+22, baseY-30, 10, 14);
     const lines=["Hesch des gsehe?","Mei mei mei!","Bei uns dahaim!","Was soll des werra?","Der Lausbub!"];
-    if (Math.sin(o.animT*1.1+o.dialogIdx) > 0.94) drawBubble(x-10, baseY-95, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*1.1+o.dialogIdx) > 0.94) drawBubble(x-10, baseY-95, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='imbissOnkel'){
     // Turkish-German döner stand owner with apron
@@ -2076,7 +2337,7 @@ function drawNear(o){
     // Döner-Spieß in hand
     ctx.fillStyle='#a85020'; ctx.fillRect(x+22, baseY-46, 10, 18);
     const lines=["Lan, mit alles?","Habibi, was darf's sein?","Mit scharf, ja?","Komm rein, Brudi!"];
-    if (Math.sin(o.animT*1.0+o.dialogIdx) > 0.92) drawBubble(x-10, baseY-95, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*1.0+o.dialogIdx) > 0.92) drawBubble(x-10, baseY-95, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='afghanenJugend'){
     // Youth with backpack, hoodie, peace fingers
@@ -2090,7 +2351,7 @@ function drawNear(o){
     ctx.fillStyle='#d8a880'; ctx.fillRect(x+18, baseY-44, 5, 7);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-52, 18, 32);
     const lines=["Brudi, was geht?","Yallah!","Sheesh!","Wahllah, krass!","Same, lan!"];
-    if (Math.sin(o.animT*1.5+o.dialogIdx) > 0.88) drawBubble(x-10, baseY-92, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*1.5+o.dialogIdx) > 0.88) drawBubble(x-10, baseY-92, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='spaetiOnkel'){
     // Russian-German Späti-owner standing in doorway
@@ -2102,7 +2363,7 @@ function drawNear(o){
     ctx.fillStyle='#ffd633'; ctx.fillRect(x+8, baseY-44, 8, 2);
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(x, baseY-58, 24, 36);
     const lines=["Drei Euro vierzig.","Pfand zurück, da.","Du brauchst was?","Karte? Nur ab zehn Euro."];
-    if (Math.sin(o.animT*0.8+o.dialogIdx) > 0.95) drawBubble(x-10, baseY-100, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*0.8+o.dialogIdx) > 0.95) drawBubble(x-10, baseY-100, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='bauarbeiterRO'){
     // Romanian construction worker with high-vis vest
@@ -2116,7 +2377,7 @@ function drawNear(o){
     ctx.fillStyle='#5a3014'; ctx.fillRect(x+22, baseY-66, 3, 50);
     ctx.fillStyle='#888'; ctx.fillRect(x+19, baseY-22, 9, 8);
     const lines=["Salutare!","Hai noroc!","Mehr Kaffee, ja?","Ce faci?","Pause!"];
-    if (Math.sin(o.animT*1.2+o.dialogIdx) > 0.91) drawBubble(x-10, baseY-100, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*1.2+o.dialogIdx) > 0.91) drawBubble(x-10, baseY-100, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='rentnerBank'){
     // Two old men on a bench
@@ -2133,7 +2394,7 @@ function drawNear(o){
     ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.strokeRect(x+6, baseY-40, 16, 26);
     ctx.strokeRect(x+30, baseY-40, 16, 26);
     const lines=["Heutzutage!","Zu meiner Zeit...","Dees git's doch ned!","Jaja...","Hmpf."];
-    if (Math.sin(o.animT*0.7+o.dialogIdx) > 0.94) drawBubble(x-10, baseY-90, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*0.7+o.dialogIdx) > 0.94) drawBubble(x-10, baseY-90, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='rentnerNordic'){
     // Senior with Nordic walking sticks
@@ -2170,7 +2431,7 @@ function drawNear(o){
     ctx.fillStyle='#e8c878'; ctx.beginPath(); ctx.moveTo(x+22, baseY-32); ctx.lineTo(x+30, baseY-32); ctx.lineTo(x+26, baseY-22); ctx.closePath(); ctx.fill();
     ctx.fillStyle='#ff66aa'; ctx.beginPath(); ctx.arc(x+26, baseY-36, 5, 0, Math.PI*2); ctx.fill();
     const lines=["Bellissimo, Bin Run!","Ciao bella!","Una pallina, sì?","Oh mamma mia!","Stracciatella?"];
-    if (Math.sin(o.animT*1.1+o.dialogIdx) > 0.90) drawBubble(x-10, baseY-95, lines[o.dialogIdx%lines.length], 10);
+    if (Math.sin(o.animT*1.1+o.dialogIdx) > 0.90) drawBubble(x-10, baseY-95, (o.dialog||lines[o.dialogIdx%lines.length]), 10);
   }
   else if (o.type==='workerKurd'){
     // Worker in blue overalls, lunch box
@@ -2460,6 +2721,13 @@ function drawEntities(){
   for (const e of Entities){
     const x = e.x - Game.scrollX;
     if (x < -100 || x > CFG.W + 50) continue;
+    // Drop-shadow on the ground so obstacles pop off the playfield
+    if (!e.pickup){
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(x + e.w/2, CFG.GROUND_Y + 4, e.w*0.45, 5, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
     ctx.save();
     if (e.type==='misthaufen'){
       ctx.fillStyle='#5a3a14';
