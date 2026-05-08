@@ -81,6 +81,7 @@ const Save = {
     cosmeticPending: [],   // queue of unlock popups to show on next launch
     mamaCallHistory: [],   // 'annehmen' | 'ablehnen' | 'ignorieren'
     // === Stage 2 ===
+    shownInsults: {},      // {line: 1} — lifetime anti-repeat for insult lines
     npcMemory: {},         // { habibi_späti: {last_transgression, count, hostility, dialogue_unlock} }
     ksc: {checkedAt: 0, position: null, last: null}, // {position:'10', last:'win'|'loss'|'draw'}
     lifetimePlayTime: 0,   // seconds across all runs
@@ -1664,6 +1665,8 @@ const Game = {
   auraFloorThisRun: 30,        // current floor (max(30, savefloor) + Hosseini bonus)
   kscRefreshed: false,         // tried to fetch fixture this session
   kscLine: '',                 // 'KSC 2-0' or '' if unknown
+  // STAGE 2 — NPC reactions when insulted (overlay-rendered above kind)
+  npcReactions: [],
   // STAGE 2 — Act II final boss state
   oilFound: false,
   oilCutsceneT: 0,
@@ -4269,6 +4272,86 @@ const INSULT_LINES_GENERAL = [
   '"Du versuchst — das isch das Tragische."',
   '"Wenigstens hesch en Vape, gell?"',
   '"Mama wäre stolz wenn sie dich ned kennen würde."',
+  // === Library expansion — second wave ===
+  '"Akhi dein iPhone-Wallpaper isch dein Selfie. Ich hab\'s gsehe."',
+  '"Wallah dein Bart isch geplante Wirtschaftsförderung."',
+  '"Bro dein Personalausweis-Foto wird in Schulen gezeigt — als Warnung."',
+  '"Habibi dein Spotify-Wrapped 2024 hat sich entschuldigt."',
+  '"Dein WhatsApp-Profilbild isch en Bauchnabel von 2017."',
+  '"Akhi du redsch wie en Reddit-Mod der seit 11 Jahren wartet."',
+  '"Brudi dein DoorDash-Tipp isch immer 0%, dein Karma auch."',
+  '"Schwöre dein Lebenslauf hat 1 PowerPoint-Folie und drei Tippfehler."',
+  '"Bro du bisch der Grund warum AI-Detektoren \\"Niveau zu niedrig\\" zeigen."',
+  '"Wallah dein Klingelton ist seit 2009 unverändert — wie alles."',
+  '"Akhi dein Alarm-Sound ist die Tagesschau-Glocke. Du wachst um 19:50 auf."',
+  '"Dein Spotify-Algorithmus weint dir entgegen."',
+  '"Habibi du bisch en Buchstabier-Wettbewerb-Verlierer der Klasse 4."',
+  '"Bro dein Therapeut hat dich auf en \\"Lehrling\\" empfohlen."',
+  '"Brudi dein Lieblingsessen ist Bahnhofsgebäck."',
+  '"Wallah dein Date-Reupload-Game isch Hartz-4-Niveau."',
+  '"Akhi dein einziger Trainerworkshop war \\"Atmen für Anfänger\\"."',
+  '"Bin Run beobachtet — du bisch der Soundtrack zur Resignation."',
+  '"Schwöre dein Familienchat hat dich auf \\"weniger sehen\\" gestellt."',
+  '"Dein Geo-Tag isch immer \\"Neckarsulm Bushaltestelle\\". Warum."',
+  '"Wallah du bisch der Grund warum \\"Niveau\\" als Wort eine Pause braucht."',
+  '"Bro dein Hobby isch Online-Bewertungen, alle einsterning."',
+  '"Akhi dei Krankenversicherung schreibt Beileidskarten an dich selber."',
+  '"Habibi dein Gesicht isch en Stockfoto-Beispiel für \\"verwirrt\\"."',
+  '"Dein letzter Friseurtermin war en politisches Statement."',
+  '"Schwöre dein Schritt-Tracker zeigt täglich \\"Mut: 0\\"."',
+  '"Bro dein BMI-Rechner hat sich abgemeldet."',
+  '"Wallah dein Lebensmotto isch en Werbeslogan von 2008."',
+  '"Akhi dei Lieblings-Podcast-Kategorie ist \\"True Crime, aber tröstlich\\"."',
+  '"Habibi dein Discord-Status zeigt seit 2021 \\"Schreibt gerade...\\"."',
+  '"Brudi dein Geist ist en abgelaufener Joghurt em Familienkühlschrank."',
+  '"Du bisch der Grund warum FAQ-Seiten existieren."',
+  '"Wallah dein Lieblings-McDonald\'s-Bestellung kennt der Filialleiter besser als deinen Vornamen."',
+  '"Akhi du bisch der Antrag auf Hilfe den niemand gestellt hat."',
+  '"Bro dei OnlyFans-Pitch wäre Charity."',
+  '"Dein Spotify Daily Mix Nr. 6 isch nur \\"Crocodile Rock\\" auf Repeat."',
+  '"Schwöre dein Einkaufswagen rasselt absichtlich, um dich anzukündigen."',
+  '"Habibi dein Pfand-Konto isch dein einziges Sparbuch."',
+  '"Wallah dein Briefkasten isch voll mit unzustellbaren Träumen."',
+  '"Akhi dein Gesicht isch der Grund warum Selfies erfunden wurden — als Mahnmal."',
+  '"Bro dein YouTube-Verlauf isch \\"Anleitung: wie man Anleitungen versteht\\"."',
+  '"Brudi du wirst seit 6 Jahren auf einer Beerdigung beobachtet."',
+  '"Schwöre dei Großmutter hat dei Erbe gespendet — präventiv."',
+  '"Dei Lebenslauf hat eine Zeile: \\"existiert\\"."',
+  '"Habibi du bisch en Pfandbon der niemand einlöst."',
+  '"Wallah du bisch der einzige der bei \\"GZSZ\\" mitfiebert."',
+  '"Akhi dein Steuerberater hat dich auf TikTok empfohlen — als Kuriosum."',
+  '"Bro dei Praktikumsbericht isch Volkshochschulkurs-Material gewesen."',
+  '"Brudi du bisch der Grund warum \\"Volljährigkeit\\" diskutiert wird."',
+  '"Wallah dein Bewerbungsgespräch endete bevor es anfing."',
+  '"Akhi dein Pinguin-Pyjama riecht nach Niederlage."',
+  '"Habibi du bisch der Grund warum Verkehrserziehung Schulpflicht ist."',
+  '"Dein Toaster hat mehr Ziele als du."',
+  '"Brudi dein iCloud-Speicher ist 95% Memes über deine Mutter."',
+  '"Schwöre dein Profilbild läuft länger als dein letztes Date."',
+  '"Wallah dein Lieblings-Witz erklärst du immer zweimal."',
+  '"Akhi dein Lieblingstier isch der Grund warum Tier-Lieblings unterbewertet sind."',
+  '"Bro dein DM-Slide war en Stolperstein."',
+  '"Habibi dein Geburtstag wird auf der Bushaltestelle gefeiert. Du bisch eingeladen."',
+  '"Wallah dei Insta-Story isch en Mahnwache."',
+  '"Akhi dein Lieblingssong isch \\"99 Luftballons\\" und du verstehsch nichts."',
+  '"Brudi du bisch der Grund warum Biolehrer Frühpension wählen."',
+  '"Bro dein Lieblings-Café kennt dich, aber als \\"den, der nichts bestellt\\"."',
+  '"Wallah dein Spitzname zuhause isch \\"das andere Kind\\"."',
+  '"Akhi du bisch en Vorschlag im Beschwerdebriefkasten von dir selbst."',
+  '"Schwöre dein Status auf Insta isch seit 8 Tagen \\"online\\"."',
+  '"Habibi dein Mut isch en Ablauf-Datum in Kapitel 1."',
+  '"Dei Mathenote war so schlecht, der Lehrer hat geweint — beim Arzt."',
+  '"Bro dein WLAN-Name isch en stiller Hilferuf."',
+  '"Wallah dein Onkel meint, du \\"warst auch mal ein guter Junge\\"."',
+  '"Akhi dein Schwager hat dich auf seiner Hochzeitsliste vergessen — bewusst."',
+  '"Habibi dein Ergebnistyp isch \\"er oder sie war zugegen\\"."',
+  '"Brudi du bisch der einzige der bei \\"Bauer sucht Frau\\" mitleidet."',
+  '"Wallah dei Lebenswerk isch ein Foto bei der Volkshochschule-Jubiläumsfeier."',
+  '"Akhi dein letzter Anruf war ein Flixbus-Update — und du warst nicht im Bus."',
+  '"Bro dein Kühlschrank hat \\"sortiert\\" als Persönlichkeitsmerkmal."',
+  '"Habibi dein Familien-Chat hat dich umbenannt in \\"???\\"."',
+  '"Schwöre dein Insta-Recap heißt \\"sonst nichts\\"."',
+  '"Du redsch wie en abgelaufener Volkshochschul-Italienisch-Kurs."',
 ];
 const INSULT_LINES_KIND = {
   badischOma:    [
@@ -4276,12 +4359,25 @@ const INSULT_LINES_KIND = {
     '"Dei Strickkreis hat mich verklagt — und verloren."','"Hesch des gsehe? I auch. Ich säg\'s halt."',
     '"Mei Kuchen war besser als deiner — fragsch dei Tochter."','"Frieher war alles schlimmer, gell?"',
     '"Dei Apfelkuchen isch en Beleidigung der Apfel."',
+    '"Hesch jemals Hefezopf gebacken ohne Mehlspur am Boden? I säg ned wer."',
+    '"Dei Tochter hat dich em Aldi vergessen, gell? Hat\'s mir Frau Schimanski erzählt."',
+    '"Dei Garten isch en Friedhof für Petersilie."',
+    '"86 und i lauf besser als dei Stolz."','"Dei Erinnerungen sind wie dei Süßstoff — künstlich."',
+    '"Mei Kehrwoche hesch noch nie gemacht, sagt Frau Schimanski."',
+    '"Dei Geranien sind dir egal — wie deinem Mann."',
   ],
   oma:           [
     '"Dei Rollator hat mehr Aura als du."','"Manfred is heimlich mein Fan."',
     '"Dei Enkel postet dich auf TikTok mit Untertitel."','"Rollator XL — wie dei Ego."',
     '"Am Sonntag warsch du em Discounter, mei Spion sagt."','"Dei Sparbuch isch in 1987 stehengeblieben."',
     '"Dei Strickjacke schreit nach Therapie."',
+    '"Dei Enkel hat dich auf Insta geblockt. Findsch ned raus, nimmer."',
+    '"Dei Erbsensuppe isch aus der Dose — sag\'s ihm."',
+    '"Bingo am Mittwoch ohne dich. Schon wieder."',
+    '"Dei Witwenrente reicht für weniger als dei Beleidigungen."',
+    '"Bei der Krankenkasse weinen sie wenn dein Antrag kommt."',
+    '"Dei Hausarzt hat dich aufgegeben und Kreuzworträtsel gewählt."',
+    '"Hesch dei Pension verzockt am Spielautomat? I weiß warum."',
   ],
   rentnerBank:   [
     '"Bank-Spot reserviert für Sigmas, ned für dich."','"Tagesschau läuft ohne dich, Opa."',
@@ -4317,18 +4413,37 @@ const INSULT_LINES_KIND = {
     '"Mit Soße, ohne Aura, wie immer."','"Dei Sohn macht Abi und nicht ihm willst zu sein."',
     '"Lan, dei Yufka isch Tüte mit Idee."','"Habibi du bisch der Grund warum Anatolien-Kebap rebrandet hat."',
     '"Dei Cocktail-Soße kommt aus en Eimer mit Etikett."',
+    '"Akhi dein Spieß hat seit 2019 keine neue Schicht gesehen."',
+    '"Dei Tochter studiert Medizin und du verkaufst Yufka. Mathe stimmt."',
+    '"Pinar war heut Abend mit Kevin aus der 9b. Wallah."',
+    '"Dei Werbung an der Bushaltestelle isch peinlicher als dei Restaurant."',
+    '"Lebensmittelkontrolleur hat dich auf Speed-Dial."',
+    '"Hesch du Currywurst überhaupt schon mal probiert? Ich ned, du wahrscheinlich auch ned."',
+    '"Dei Onkel in Mannheim hat eine Pizzeria. Er nennt dich nicht."',
   ],
   spaetiOnkel:   [
     '"Pfand ist Pfand, Onkel."','"Doppelter Preis für schlechte Vibes."',
     '"Dei Pfand-Konto hat negativ Saldo."','"Justin schuldet noch — und du bisch Justin."',
     '"Dei Bargeld-Politik isch Steuerdelikt."','"Akhi du verkaufst seit 2003 die gleiche Pfandflasche."',
     '"Habibi, IHK lacht über dich."',
+    '"Dein Käseregal datiert vor dem Mauerfall."','"Akhi, dei Ladenschluss isch \'wenn der letzte Schwape geht\'."',
+    '"Schwarzfahrer-Detektor — du bisch der ungeschulteste Spotter Deutschlands."',
+    '"Dei Sortiment isch en Diorama der Resignation."',
+    '"Pfandsystem ohne dich: 30% effizienter."',
+    '"Akhi du hast \'kein Wechselgeld\' zu deiner Persönlichkeit gemacht."',
   ],
   afghanenJugend:[
     '"Wallah ich schwör — du auch?"','"Brudi, dei Rizz isch im Cope."',
     '"Wallah du bisch en Subreddit von einem Mann."','"Bro dei Murat-KA-Verbindung isch Bushaltestelle-Energie."',
     '"Schwöre dei Aura-Aufladestation isch Asphalt."','"Brudi dei Sigma-Move isch Sigma-Cope."',
     '"Akhi du sagsch \\"Akhi\\" zu Leuten die du ned kennst."',
+    '"Dein Discord-Server hat zwei Mitglieder — du und dein Schatten."',
+    '"Brudi du bisch der TikTok-Algorithmus von dir selber."',
+    '"Wallah dei Vater hört dich vom Fenster aus und schämt sich."',
+    '"Akhi dei Bushaltestelle wird wegen dir abgeschafft."',
+    '"Lan, dein Insta-Bio wechselt jede Woche, dein Charakter nicht."',
+    '"Habibi schon Murat-KA hat dich blockiert."',
+    '"Yallah Bro, dei Sneaker sind \\"inspiriert von\\"-Niveau."',
   ],
   workerKurd:    [
     '"Schichtende? Geh heim, Bro."','"Bosch ist Bosch, du bist du."',
@@ -4345,6 +4460,12 @@ const INSULT_LINES_KIND = {
     '"Dein Mathe-LK-Plan isch Realschulabschluss-Plan B."','"Frau Müller hat dich em Klassenbuch eingeklebt."',
     '"Sport fällt aus weil du Sport bisch."','"Wallah dei TikTok-Ratschläge sind Klassenarbeit-Quelle."',
     '"Bushaltestelle? Eher Hausarrestelle."',
+    '"Dei Klassenfahrt-Foto lacht jeder aus außer dir."',
+    '"Sitzenbleiben isch dei Lebensweg. Akzeptier es."',
+    '"Frau Müllers Notenkonferenz ohne dich war kürzer und froher."',
+    '"Dei Praktikum bei Edeka war zu früh beendet — du erinnersch dich nicht warum."',
+    '"Bushaltestelle 17 Uhr — heute ohne dich, immer noch nicht ohne dich."',
+    '"Dei Schulranzen war voller Erinnerung als dein Notenheft."',
   ],
   hochschulerin: [
     '"BWL ist ein Fehler, sagsch du selber."','"KIT < KSC."',
@@ -4407,12 +4528,171 @@ const INSULT_LINES_KIND = {
   hochschulerin_extra:[], // unused, placeholder
 };
 
+// Lifetime anti-repeat: filter every candidate against Save.data.shownInsults.
+// If the available pool is exhausted, RESET the seen-set (rare with the
+// libraries we have, but keeps the game graceful at the long tail).
 function pickInsultLine(kind){
-  if (kind && INSULT_LINES_KIND[kind] && Math.random() < 0.55){
-    return choice(INSULT_LINES_KIND[kind]);
+  const seen = (Save && Save.data && Save.data.shownInsults) || {};
+  const tryPick = (pool)=>{
+    if (!pool || !pool.length) return null;
+    const fresh = pool.filter(l => !seen[l]);
+    return fresh.length ? choice(fresh) : null;
+  };
+  let line = null;
+  // 65% prefer the kind-specific pool when we have one — the kind insults
+  // are sharper, more targeted, more "mean enough".
+  if (kind && INSULT_LINES_KIND[kind] && Math.random() < 0.65){
+    line = tryPick(INSULT_LINES_KIND[kind]);
   }
-  return choice(INSULT_LINES_GENERAL);
+  if (!line) line = tryPick(INSULT_LINES_GENERAL);
+  // Both pools exhausted — only happens after hundreds of insults. Wipe
+  // the seen set and re-roll fresh.
+  if (!line){
+    if (Save && Save.data) { Save.data.shownInsults = {}; Save.save(); }
+    line = (kind && INSULT_LINES_KIND[kind]) ? choice(INSULT_LINES_KIND[kind]) : choice(INSULT_LINES_GENERAL);
+  }
+  // Mark seen
+  if (Save && Save.data){
+    if (!Save.data.shownInsults) Save.data.shownInsults = {};
+    Save.data.shownInsults[line] = 1;
+  }
+  return line;
 }
+
+// === REACTION LINES — what the targeted NPC shouts back ===
+// Each kind gets 6-10 reaction snippets so the same victim never says the
+// same thing twice in close succession. Bin Run's roast lands; the NPC
+// is offended, sometimes counter-roasts, sometimes calls for help.
+const REACTION_LINES_KIND = {
+  badischOma: [
+    'FRECHHEIT!','Der Lausbub!','Mei mei mei!','I säg\'s dei Mutter!',
+    'Schäm di!','I ruf des Ordnungsamt!','Bei uns dahaim hot ma\' sowas ned!',
+    'Schwape-Bub! Schwape-Bub!','Pfui!','Mei Strickkreis hört des heut!',
+  ],
+  oma: [
+    'Dees git\'s doch ned!','Ich ruf dei Mutti!','Pfui Teufel!',
+    'So ein Lump!','Heutzutage!','Mein Enkel macht des nimmer.',
+    'Junger Mann!','Manfred, hesch des gsehe?','Anzeige!',
+  ],
+  rentnerBank: [
+    'Manfred, hesch des g\'hört?','Frieher hätt\' mer dich verkloppt!',
+    'Heutzutage!','Schäm dich, Junge!','Hmpf!','Anzeige!',
+    'Bei uns hot des nia geba!','I bin scho 86, du bisch nix!',
+    'Tagesschau läuft, du störsch!',
+  ],
+  rentnerNordic: [
+    'Stockwechsel — und du wechselst dei Manieren!',
+    'I bin schneller als du!','Mei Pulsuhr lacht über dich!',
+    'Brustpolster hat mehr Gefühl als du!','Volkshochschule jetzt!',
+    'Salomon-Mitglied seit \'89!','Kneipp-Becken — du bisch reif dafür!',
+  ],
+  salomonJogger: [
+    'Garmin-Daten zeigen dei Niveau!','Pulsuhr 175 — du machst Sorgen!',
+    'I lauf dich tot, Bub!','Streckenrekord Albtal — i hab\'s!',
+    'Compression-Socken halten mehr aus als du!','Marathon-Vorbereitung gestört!',
+  ],
+  imker: [
+    'Mei Bienen werden dich finden!','Königin hat\'s notiert!',
+    'Honig-Geschäft! Ohne dich!','Mei Volk Nr. 7 ist verärgert!',
+    'Stachel kommt!','Gelée Royale ist nix für dich!',
+  ],
+  marktstand: [
+    'Eigene Ernte — geh weiter!','€2,50 fürs Maulhalten!',
+    'Mein Enkel verkauft dir nix!','Pfui!','Bei uns nicht!',
+    'Bio? Du auch ned!',
+  ],
+  imbissOnkel: [
+    'Lan, raus aus mei Laden!','Wallah du kommsch nimmer rein!',
+    'Habibi, dei Vater hört des!','Hausverbot! Lebenslang!',
+    'Mein Sohn macht Abi — du machst nix!','Cocktail-Soße ist aus FÜR DICH!',
+    'Pfand dafür!','Akhi, halt\'s Maul!',
+  ],
+  spaetiOnkel: [
+    'Doppelter Preis ab jetzt!','Hausverbot, raus!',
+    'Pfand-Konto: du schuldest!','Justin auch raus!',
+    'Polizei wird gerufen!','Brudi, halt deine Klappe!',
+    'Karte abgelehnt — wie du!',
+  ],
+  afghanenJugend: [
+    'Lan, was geht?','Wallah hesch grad gemerkt?',
+    'Bro stop talken, geh weiter!','Habibi voll cringe.',
+    'Akhi Murat hört davon.','Schwöre dei Insta wird gemeldet.',
+    'Same back, Brudi.','Geh nach Pforzheim!',
+    'Bushaltestelle 17 Uhr — komm vorbei wenn du Mut hast.',
+  ],
+  workerKurd: [
+    'Junge, ich hab Schicht — geh!','Mein Tablett interessiert dich nix!',
+    'Bosch-Werks-Solidarität sagt: nein!','Çay-Pause gestört!',
+    'Hör auf, ich erzähl\'s deinem Vater!',
+  ],
+  bauarbeiterRO: [
+    'La revedere, Junge!','Helm aufsetzen und schweigen!',
+    'Mei Bagger zerlegt dich!','Romania kennt dich nicht!',
+    'Pause! Du auch — pause für immer!',
+  ],
+  realschüler: [
+    'Wallah cringe, Brudi!','Klassengruppe wird des hören!',
+    'Sus, digga.','L für dich.','Frau Müller informiert!',
+    'Schwöre du bist Realschule-Geschichte!',
+    'Bushaltestelle drüben, halt\'s Maul!',
+    'Jeder lacht über dich, Bro.',
+  ],
+  hochschulerin: [
+    'Soft Skill: dich ignorieren.','BWL-Drittsemester sagt: peinlich.',
+    'Erasmus war besser.','Mensa-Karte hat mehr Niveau.',
+    'KIT-Bibliothek wartet auf mich, ned auf dich!',
+  ],
+  schuetze: [
+    'Schützenfest ohne dich!','Dieter wird des hören!',
+    'Tradition seit 1886 — du nicht!','Mitglied — du nie!',
+    'Junior-Wettkampf wartet, ohne dich.',
+  ],
+  wanderer: [
+    'Schwarzwaldverein hört davon!','Goldsteig ohne dich!',
+    'Vesper-Pause — geh weiter!','Mei Wanderstock klemmt dich gleich!',
+    'Mitglied seit \'87 — du isch nix!',
+  ],
+  baederHandtuch: [
+    'Therme-Hausverbot!','Solebecken ohne dich!',
+    'Aufguss um 14:00 — du nicht eingeladen!','Sauna-Knigge gebrochen!',
+  ],
+  eismannRoberto: [
+    'Mannaggia!','Buon giorno und tschüss!',
+    'Mein Sohn arbeitet bei Bosch wegen Leute wie dir!',
+    'Stracciatella ist heut nix für dich!','Mamma mia!',
+    'Aspetta — du bisch raus!',
+  ],
+  lederhose: [
+    'Bei uns in Bayern hätt\' man dich!','Bratwurst ist heilig!',
+    'Maultaschen-Tag — du nicht eingeladen!','Lederhose hat mehr Charakter!',
+    'Pils ist aus FÜR DICH!',
+  ],
+  kindFleischkaes: [
+    '...','Mama!','...mhm.','MAMA!','Papa hat\'s gesagt.',
+    'Du bisch komisch.','Mehr Ketchup.',
+  ],
+  dog: [
+    'WUFF WUFF!','GRRRR!','WUFF!','*knurrt*','WAU WAU!','WUUFFF!',
+  ],
+  ziege: [
+    'MÄÄÄÄH!','Mäh-mäh!','Mä!','MEHHHHHH!','Mäh? Mäh.',
+  ],
+  jogger: [
+    'Schnauf — dich beleidigen kostet zu viel!',
+    'Pulsuhr 192 — du machst alles schlimmer!',
+    'Hach! Pause!','I lauf weiter, du bleibsch.',
+  ],
+  'shisha-jugend': [
+    'Brudi, halt\'s Maul!','Wallah voll cringe.',
+    'Hookah-Park hört davon.','Lan, geh nach Pforzheim.',
+  ],
+};
+
+const REACTION_LINES_GENERIC = [
+  'FRECHHEIT!','Halt\'s Maul!','Junger Mann!','Anzeige!',
+  'I säg\'s dei Mutter!','Pfui!','Schäm di!','Schwape-Bub!',
+  'Lan was geht?','Wallah cringe!',
+];
 
 const Insult = {
   cd: 0,
@@ -4564,6 +4844,27 @@ const Insult = {
           if (this.chain >= 2 && typeof NewsTicker !== 'undefined'){
             NewsTicker.fire('INLINE_INSULT', 'Insult: ' + this.pendingTarget.kind);
           }
+          // VICTIM REACTION — the targeted NPC speaks back. Pulls a fresh
+          // reaction line (per kind, fall back to generic), spawns a 2.5s
+          // bubble above their head. Kept anti-repeat by tracking the last
+          // shown reaction per kind on Game._npcLastReact.
+          const pool = REACTION_LINES_KIND[this.pendingTarget.kind] || REACTION_LINES_GENERIC;
+          Game._npcLastReact = Game._npcLastReact || {};
+          let rline = pool[Math.floor(Math.random()*pool.length)];
+          let tries = 0;
+          while (Game._npcLastReact[this.pendingTarget.kind] === rline && tries < 4 && pool.length > 1){
+            rline = pool[Math.floor(Math.random()*pool.length)]; tries++;
+          }
+          Game._npcLastReact[this.pendingTarget.kind] = rline;
+          Game.npcReactions = Game.npcReactions || [];
+          Game.npcReactions.push({
+            kind: this.pendingTarget.kind,
+            xWorld: Game.scrollX + this.pendingTarget.x, // anchor in world space so it stays glued to NPC
+            y: this.pendingTarget.y,
+            text: rline,
+            t: 0,
+            life: 2.5,
+          });
         } else {
           // No target — penalty already applied (cd=4, chain reset)
           Krass.add(-12, 'GEGEN DIE LUFT');
@@ -4927,6 +5228,46 @@ const BinRunKnows = {
     grd.addColorStop(1, 'rgba(0,0,0,0.7)');
     ctx.fillStyle = grd; ctx.fillRect(0,0,CFG.W,CFG.H);
     drawBubble(Player.x - 60, Player.y - 110, Game.fourthWallText, 12);
+  }
+};
+
+// === NPC REACTIONS — drawn over Bg.near targets after Bin Run insults ===
+const NpcReactions = {
+  update(dt){
+    const arr = Game.npcReactions; if (!arr) return;
+    for (let i=arr.length-1;i>=0;i--){
+      arr[i].t += dt;
+      if (arr[i].t > arr[i].life) arr.splice(i, 1);
+    }
+  },
+  draw(){
+    const arr = Game.npcReactions; if (!arr || !arr.length) return;
+    for (const r of arr){
+      const a = r.t/r.life;
+      const fade = a < 0.15 ? a/0.15 : (a > 0.85 ? Math.max(0,(1-a)/0.15) : 1);
+      const sx = r.xWorld - Game.scrollX*0.85; // matches Bg.near parallax
+      if (sx < -120 || sx > CFG.W+60) continue;
+      const yLift = -16 - a*22;
+      ctx.save();
+      ctx.globalAlpha = fade;
+      // Counter-bubble: red border to read as "offended"
+      const txt = r.text;
+      ctx.font='bold 11px "Press Start 2P"';
+      const w = Math.max(40, ctx.measureText(txt).width + 18);
+      const bx = sx - w/2, by = (r.y || (CFG.GROUND_Y-100)) + yLift - 22;
+      ctx.fillStyle='#fff';
+      ctx.fillRect(bx, by, w, 26);
+      ctx.strokeStyle='#cc1818'; ctx.lineWidth=3; ctx.strokeRect(bx, by, w, 26);
+      // tail
+      ctx.beginPath();
+      ctx.moveTo(sx-4, by+26); ctx.lineTo(sx, by+34); ctx.lineTo(sx+6, by+26);
+      ctx.fillStyle='#fff'; ctx.fill();
+      ctx.strokeStyle='#cc1818'; ctx.lineWidth=2; ctx.stroke();
+      // text
+      ctx.fillStyle='#cc1818'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(txt, sx, by+13);
+      ctx.restore();
+    }
   }
 };
 
@@ -9003,6 +9344,7 @@ function resetForNewRun(){
   Game.witnesses = 0;
   Game.chantalTrust = 50;
   Game.highlightReel.length = 0;
+  Game.npcReactions = [];
   // STAGE 2 — Insult state
   if (typeof Insult !== 'undefined') Insult.reset();
   if (Input){ Input.insultBuffer = 0; Input.touchInsult = false; }
@@ -9180,6 +9522,7 @@ function frame(now){
     Input.insultBuffer = Math.max(0, Input.insultBuffer - dt);
     if (Input.insultBuffer > 0){ Insult.fire(); Input.insultBuffer = 0; }
     Insult.update(updateDt);
+    NpcReactions.update(updateDt);
     // STAGE 2 — Transgression director (full-screen setpieces) runs only during PLAY (not bosses)
     if (Game.state==='PLAY' && !Game.auraLocked) TransgressionDirector.update(updateDt);
     // STAGE 2 — fourth wall pause check
@@ -9222,6 +9565,7 @@ function frame(now){
     Bg.draw();
     Progression.drawWorldOverlay();
     Insult.drawWorldOverlay();
+    NpcReactions.draw();
     drawEntities();
     drawSpecialEntities();
     drawParticles(0);
