@@ -8881,6 +8881,27 @@ const Tutorial = {
     ctx.strokeStyle='#000'; ctx.lineWidth=3;
     ctx.strokeText('[SPACE] oder TIPPEN', CFG.W/2, by+bh+28);
     ctx.fillText('[SPACE] oder TIPPEN', CFG.W/2, by+bh+28);
+    // Lifetime stats strip — only shown for returning players (lifetime
+    // play time > 60 sec means they've been here before).
+    if ((Save.data.lifetimePlayTime||0) > 60){
+      const sy = CFG.H - 30;
+      ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0, sy-12, CFG.W, 24);
+      ctx.fillStyle='#ffd633'; ctx.font='9px "Press Start 2P"'; ctx.textAlign='left';
+      const hours = Math.floor((Save.data.lifetimePlayTime||0)/3600);
+      const minutes = Math.floor(((Save.data.lifetimePlayTime||0)%3600)/60);
+      const a = Math.floor(Save.data.lifetimeAura||0);
+      const i = Save.data.insultsLifetime||0;
+      const ach = Object.keys(Save.data.achievements||{}).length;
+      const total = Object.keys(ACHIEVEMENTS||{}).length;
+      const stats = `LIFETIME: ${hours}h${String(minutes).padStart(2,'0')}m  ·  AURA ${a.toLocaleString('de-DE')}  ·  INSULTS ${i}  ·  ACHIEVEMENTS ${ach}/${total}`;
+      ctx.fillText(stats, 16, sy+4);
+      // Today's mutation badge inline
+      if (typeof Mutation !== 'undefined' && Mutation.current && Mutation.current.id !== 'NORMAL'){
+        ctx.fillStyle = Mutation.current.color;
+        ctx.textAlign='right';
+        ctx.fillText('HEUTE: ' + Mutation.current.name, CFG.W-16, sy+4);
+      }
+    }
   }
 };
 
