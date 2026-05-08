@@ -279,7 +279,25 @@ const MUTATIONS = [
   {id:'PFAND_TAG',      name:'PFAND-TAG',           desc:'Pfand-Werte verdoppelt',        color:'#7fff7f'},
   {id:'KSC_GEDENKEN',   name:'KSC-GEDENKEN',        desc:'KSC-Niederlagen-Bonus',         color:'#0072c6'},
 ];
+// Seasonal/date-bound special mutations that OVERRIDE the daily roll.
+// MM-DD keyed; Mutation.init() checks this map first.
+const SEASONAL_MUTATIONS = {
+  '01-01': {id:'NEUJAHR',           name:'NEUJAHR',           desc:'Vorsätze. Niemand hält sie.',          color:'#ffd633'},
+  '02-14': {id:'VALENTIN',          name:'VALENTINSTAG',      desc:'Chantal-Vertrauen ×2',                color:'#ff66aa'},
+  '03-08': {id:'WELTFRAUENTAG',     name:'WELTFRAUENTAG',     desc:'Frau Müller, Frau Herta, Mama: stark',color:'#ff66ff'},
+  '05-01': {id:'TAG_DER_ARBEIT',    name:'TAG DER ARBEIT',    desc:'Schaffe schaffe ned heut.',           color:'#cc1818'},
+  '06-21': {id:'SOMMERSONNENWENDE', name:'SOMMERSONNENWENDE', desc:'Schwarzwald glüht. Aura ×1.5.',       color:'#ffaa30'},
+  '10-03': {id:'EINHEITSTAG',       name:'TAG DER EINHEIT',   desc:'Schwobe = Badener heute. (Quatsch.)',color:'#000'   },
+  '10-31': {id:'HALLOWEEN',         name:'HALLOWEEN',         desc:'Frau Herta verteilt nichts.',         color:'#ffaa30'},
+  '11-11': {id:'KARNEVAL',          name:'11.11. KARNEVAL',   desc:'Helau. Aber wir sin in Baden.',       color:'#ff66ff'},
+  '12-06': {id:'NIKOLAUS',          name:'NIKOLAUS',          desc:'Pfand verdoppelt. Lutsch ein Stutenkerl.', color:'#cc1818'},
+  '12-24': {id:'HEILIGABEND',       name:'HEILIGABEND',       desc:'Mama erwartet dich pünktlich um 17:00.',   color:'#7fff7f'},
+  '12-31': {id:'SILVESTER',         name:'SILVESTER',         desc:'Vape klingelt wie Böller.',            color:'#ffd633'},
+};
 function todaysMutation(){
+  const d = new Date();
+  const mmdd = String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  if (SEASONAL_MUTATIONS[mmdd]) return SEASONAL_MUTATIONS[mmdd];
   const seed = (typeof todaySeed === 'function') ? todaySeed() : new Date().toISOString().slice(0,10);
   let h = 0;
   for (let i=0;i<seed.length;i++) h = (h*131 + seed.charCodeAt(i))>>>0;
@@ -311,6 +329,56 @@ const Mutation = {
     ctx.fillText(m.name + '  —  ' + m.desc, x + w/2, y + 21);
     ctx.restore();
   },
+};
+
+// ===== MID-GAME NEWS TICKER =====
+// When a transgression resolves successfully, brief BNN-style banner at
+// the bottom of the screen for ~2.6 seconds. Reads like local news. On
+// PRESSE_TAG mutation days, ALSO queues a fake bnn.online Insta DM.
+const NewsTicker = {
+  active: false, t: 0, headline: '', source: '',
+  fire(transgressionId, kindLabel){
+    const headline = (typeof HEADLINE_TEMPLATES !== 'undefined' && HEADLINE_TEMPLATES[transgressionId])
+      ? HEADLINE_TEMPLATES[transgressionId]
+      : `Mutschelbacher Junge — "${kindLabel||transgressionId}" ohne Kommentar.`;
+    const sources = ['BNN.online','SWR Aktuell','BILD Karlsruhe','Mutschelbach Echo','badische-zeitung.de'];
+    this.headline = headline;
+    this.source = sources[Math.floor(Math.random()*sources.length)];
+    this.active = true; this.t = 0;
+    // PRESSE_TAG — also queue a fake DM popup so it lingers on the right
+    if (typeof Mutation !== 'undefined' && Mutation.is && Mutation.is('PRESSE_TAG')){
+      try{
+        HUD.popup = {kind:'dm', user:'bnn.online', msg: headline.length > 80 ? headline.slice(0,78)+'…' : headline};
+        HUD.popupT = 4.5;
+      } catch(e){}
+    }
+  },
+  update(dt){
+    if (this.active){
+      this.t += dt;
+      if (this.t > 2.6) this.active = false;
+    }
+  },
+  draw(){
+    if (!this.active) return;
+    const t = this.t;
+    const a = t < 0.3 ? t/0.3 : (t > 2.3 ? Math.max(0,(2.6-t)/0.3) : 1);
+    const ry = CFG.H - 80, rh = 36;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, ry-2, CFG.W, rh+4);
+    ctx.fillStyle = '#cc1818'; ctx.fillRect(0, ry, 130, rh);
+    ctx.fillStyle = '#fff'; ctx.font='bold 11px "Press Start 2P"'; ctx.textAlign='left';
+    ctx.fillText('BREAKING', 8, ry+22);
+    ctx.fillStyle = '#fff'; ctx.font='bold 9px "Press Start 2P"';
+    ctx.fillText(this.source.toUpperCase(), 138, ry+14);
+    ctx.font='10px "Press Start 2P"';
+    let single = this.headline;
+    while (ctx.measureText(single).width > CFG.W-150) single = single.slice(0,-1);
+    if (single !== this.headline) single = single.slice(0,-1) + '…';
+    ctx.fillText(single, 138, ry+28);
+    ctx.restore();
+  }
 };
 
 // ===== ACHIEVEMENTS =====
@@ -358,6 +426,42 @@ const Achv = {
     this.popQueue.push(id);
     if (Audio.brass) try{ Audio.brass.triggerAttackRelease(['G5','C6','E6'],'8n', undefined, 0.55);}catch(e){}
     if (navigator.vibrate) navigator.vibrate([15,30,15]);
+  },
+  // Toggleable trophy gallery — press A on the death screen to open.
+  vitrineOpen: false,
+  drawVitrine(){
+    if (!this.vitrineOpen) return;
+    ctx.fillStyle = 'rgba(0,0,0,0.92)'; ctx.fillRect(0,0,CFG.W,CFG.H);
+    ctx.fillStyle = '#ffd633'; ctx.font='bold 22px Bangers, sans-serif'; ctx.textAlign='center';
+    ctx.fillText('VITRINE — ' + Object.keys(Save.data.achievements||{}).length + ' / ' + Object.keys(ACHIEVEMENTS).length, CFG.W/2, 48);
+    const ids = Object.keys(ACHIEVEMENTS);
+    const cols = 3, cellW = (CFG.W-100)/cols, cellH = 56, startY = 80;
+    for (let i=0;i<ids.length;i++){
+      const id = ids[i], def = ACHIEVEMENTS[id];
+      const col = i % cols, row = Math.floor(i/cols);
+      const x = 50 + col*cellW, y = startY + row*cellH;
+      const have = !!(Save.data.achievements && Save.data.achievements[id]);
+      ctx.fillStyle = have ? '#0a8a3a' : '#1a1a1a';
+      ctx.fillRect(x, y, cellW-12, cellH-8);
+      ctx.strokeStyle = have ? '#ffd633' : '#444'; ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, cellW-12, cellH-8);
+      // medal
+      ctx.fillStyle = have ? '#ffd633' : '#333';
+      ctx.beginPath(); ctx.arc(x+22, y+24, 14, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = have ? '#000' : '#666'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(have ? '★' : '?', x+22, y+29);
+      // text
+      ctx.fillStyle = have ? '#fff' : '#666';
+      ctx.font='bold 10px Bangers, sans-serif'; ctx.textAlign='left';
+      ctx.fillText(have ? def.name : '???', x+44, y+18);
+      ctx.font='8px "Press Start 2P"'; ctx.fillStyle = have ? '#fff' : '#444';
+      // wrap desc to one line
+      let desc = have ? def.desc : '???';
+      while (ctx.measureText(desc).width > cellW-60) desc = desc.slice(0,-1);
+      ctx.fillText(desc, x+44, y+34);
+    }
+    ctx.fillStyle = '#aaa'; ctx.font='10px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText('[A] zum Schließen', CFG.W/2, CFG.H-16);
   },
   draw(){
     if (!this.current && this.popQueue.length){
@@ -1571,6 +1675,7 @@ const KEY_MAP = {
   'KeyP':'pause','Escape':'pause',
   'KeyM':'mute',
   'KeyF':'respect',
+  'KeyA':'vitrine',
 };
 
 window.addEventListener('keydown', e=>{
@@ -4372,6 +4477,10 @@ const Insult = {
           const short = burstLine.length > 28 ? burstLine.slice(0,26)+'…' : burstLine;
           comicBurst(Player.x + Player.w + 30, Player.y - 30, short);
           if (navigator.vibrate) navigator.vibrate(15);
+          // Inline insults at chain ≥2 trigger the mid-game ticker too.
+          if (this.chain >= 2 && typeof NewsTicker !== 'undefined'){
+            NewsTicker.fire('INLINE_INSULT', 'Insult: ' + this.pendingTarget.kind);
+          }
         } else {
           // No target — penalty already applied (cd=4, chain reset)
           Krass.add(-12, 'GEGEN DIE LUFT');
@@ -4593,6 +4702,8 @@ class TransgressionEnc {
           // record returning-customer memory
           Save.rememberTransgression(this.entry.npcId, this.entry.id);
           comicBurst(Player.x+30, Player.y-30, 'NICE!');
+          // Mid-game breaking-news ticker
+          if (typeof NewsTicker !== 'undefined') NewsTicker.fire(this.entry.id, this.entry.label);
         } else {
           // CRINGE — punish failed attempts harder than reward
           this.outcome = 'cringe';
@@ -8269,8 +8380,8 @@ const Death = {
     ctx.strokeText('Nochmal? [LEERTASTE]', CFG.W/2, 610);
     ctx.fillText('Nochmal? [LEERTASTE]', CFG.W/2, 610);
     ctx.font='10px "Press Start 2P"';
-    ctx.strokeText('[T] Teilen   [F] Respekt zollen', CFG.W/2, 638);
-    ctx.fillText('[T] Teilen   [F] Respekt zollen', CFG.W/2, 638);
+    ctx.strokeText('[T] Teilen   [F] Respekt zollen   [A] Vitrine', CFG.W/2, 638);
+    ctx.fillText('[T] Teilen   [F] Respekt zollen   [A] Vitrine', CFG.W/2, 638);
     // Touch button
     if (IS_TOUCH){
       ctx.fillStyle='rgba(255,214,51,0.85)'; ctx.fillRect(CFG.W/2-120, 660, 240, 50);
@@ -8279,6 +8390,11 @@ const Death = {
     }
   },
   update(dt){
+    if (Input.pressed.vitrine){
+      Achv.vitrineOpen = !Achv.vitrineOpen;
+      return;
+    }
+    if (Achv.vitrineOpen) return;
     if (Input.pressed.jump || Input.pressed.respect || Input.touchJump){
       restartGame();
     }
@@ -8922,6 +9038,7 @@ function frame(now){
   updateParticles(dt);
   HUD.update(dt);
   IntroCaption.update(dt);
+  NewsTicker.update(dt);
   // Progression — abilities, curses, popups, cooldowns. Skipped during
   // pure-cinematic states so timers don't drain while the player is reading.
   if (Game.state==='PLAY' || Game.state==='BOSS' || Game.state==='ENCOUNTER'){
@@ -8987,10 +9104,12 @@ function frame(now){
     HUD.draw();
     Mutation.drawBadge();
     Achv.draw();
+    NewsTicker.draw();
     IntroCaption.draw();
     if (Game.state === 'MAMA_CALL') MamaCall.draw();
     BinRunKnows.draw();
     if (Game.state === 'DEATH') Death.draw();
+    Achv.drawVitrine();
   }
 
   // flash
