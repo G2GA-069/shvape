@@ -2360,7 +2360,18 @@ const Vape = {
   },
   update(dt){
     if (Game.state==='DEATH' || Game.state==='ENDING') return;
-    this.v = Math.max(0, this.v - this.drainRate()*dt);
+    // WASSERMELONE flavor while active = drain × 0.7
+    let dRate = this.drainRate();
+    if (this.flavor === 'wassermelone' && this.flavorTimer > 0) dRate *= 0.7;
+    this.v = Math.max(0, this.v - dRate*dt);
+    // ERDBEER flavor while active = +1 Aura/sec passive tick
+    if (this.flavor === 'erdbeer' && this.flavorTimer > 0){
+      this._erdbeerAcc = (this._erdbeerAcc||0) + dt;
+      if (this._erdbeerAcc >= 1.0){
+        this._erdbeerAcc -= 1.0;
+        Krass.add(1, 'ERDBEER-TICK');
+      }
+    }
     this.heartT += dt;
     this.flavorTimer -= dt;
     this.invertTimer = Math.max(0, this.invertTimer - dt);
@@ -2446,10 +2457,38 @@ const Vape = {
     if (Player.onGround) Player.vy = -250;
   },
   refill(amt){ this.v = Math.min(100, this.v + amt); },
+  // 8 flavors with distinct, observable effects. flavorTimer limits the
+  // active window. Effects are consulted at the relevant call sites
+  // (Player.update for bubblegum/energy, this.update for erdbeer ticks,
+  // pickup hooks for tabak/pfand, Krass.add for heiliger_hauch).
   setFlavor(f){
     this.flavor = f;
-    this.flavorTimer = 8;
-    if (f==='mystery') this.invertTimer = 5;
+    this.flavorTimer = (f === 'mystery') ? 5 : 9;
+    if (f === 'mystery') this.invertTimer = 5;
+    // SPÄTZLE (cursed Schwobe pod) — big vape refill, drops Aura tier
+    // by 1 immediately. The joke is unmistakable.
+    if (f === 'spaetzle'){
+      const before = Krass.tier();
+      const target = Math.max(0, before-1);
+      Krass.v = (KRASS_TIERS[target] && KRASS_TIERS[target].min) || 0;
+      Krass.pulseT = 0.4;
+      HUD.note('Spätzle-Pod — Aura-Tier −1', '#ff5050');
+      this.v = Math.min(100, this.v + 35);
+      Audio.tierDown && Audio.tierDown();
+    }
+    // Per-flavor announcement (each color-coded)
+    const labels = {
+      erdbeer: ['Erdbeer — Aura tickert','#ff66aa'],
+      bubblegum:['Bubblegum — leichter Sprung','#88c0e0'],
+      tabak:   ['Tabak Klassik — Pfand ×1.5','#aaa'],
+      mystery: ['Mystery — Steuerung invertiert!','#ff66ff'],
+      wassermelone:['Wassermelone — Drain langsamer','#7fff7f'],
+      energy:  ['Energy — Schub für 9s','#cc1818'],
+      heiliger_hauch:['Heiliger Hauch — Sigma-Bonus','#ffd633'],
+      spaetzle:['Spätzle — Schwobenfluch','#5a8a5a'],
+    };
+    const tag = labels[f];
+    if (tag && f !== 'spaetzle') HUD.note(tag[0], tag[1]);
   },
 };
 
@@ -2518,7 +2557,10 @@ const Player = {
     let speedNudge = dir * 50;
     if (Vape.invertTimer > 0) speedNudge = -speedNudge;
     // Daily mutation STUTTGART_WIND raises the speed cap by 25%
-    const speedCap = CFG.MAX_SPEED * (typeof Mutation !== 'undefined' && Mutation.speedMul ? Mutation.speedMul() : 1.0);
+    let speedMul = (typeof Mutation !== 'undefined' && Mutation.speedMul) ? Mutation.speedMul() : 1.0;
+    // ENERGY vape flavor while active = +20% speed cap
+    if (Vape.flavor === 'energy' && Vape.flavorTimer > 0) speedMul *= 1.2;
+    const speedCap = CFG.MAX_SPEED * speedMul;
     Game.speed = clamp(Game.speed + (CFG.SPEED_RAMP*0.5)*dt + speedNudge*dt*4, CFG.BASE_SPEED, speedCap);
     // Auto ramp
     Game.speed = Math.min(speedCap, Game.speed + CFG.SPEED_RAMP*dt);
@@ -2582,6 +2624,8 @@ const Player = {
     }
     // Physics
     let gravity = CFG.GRAVITY;
+    // BUBBLEGUM flavor while active = 85% gravity (lighter jump)
+    if (Vape.flavor === 'bubblegum' && Vape.flavorTimer > 0) gravity *= 0.85;
     // WALL-SLIDE — when airborne and an obstacle is touching the player's
     // right side (Strommast pole, S11 car side, Traktor side), holding JUMP
     // slows descent by 60%.
@@ -3749,7 +3793,19 @@ function spawnPickup(type, xRel){
   const x = Game.scrollX + CFG.W + (xRel||rand(60,200));
   const y = CFG.GROUND_Y - rand(80, 200);
   const e = {x, y, w:30, h:30, type, pickup:true, alive:true, animT:0};
-  if (type==='vape-pod') e.flavor = choice(['erdbeer','bubblegum','tabak','mystery']);
+  if (type==='vape-pod'){
+    // Weighted flavor draw — common ones common, rare ones rare. Spätzle
+    // is cursed and intentionally rare so it's a "what just happened?" moment.
+    const r = Math.random();
+    if      (r < 0.30) e.flavor = 'erdbeer';
+    else if (r < 0.45) e.flavor = 'bubblegum';
+    else if (r < 0.58) e.flavor = 'tabak';
+    else if (r < 0.70) e.flavor = 'wassermelone';
+    else if (r < 0.82) e.flavor = 'energy';
+    else if (r < 0.90) e.flavor = 'mystery';
+    else if (r < 0.97) e.flavor = 'heiliger_hauch';
+    else               e.flavor = 'spaetzle';
+  }
   Entities.push(e);
 }
 
@@ -3836,9 +3892,10 @@ function updateEntities(dt){
           Audio.pickup(); sparkle(e.x - Game.scrollX, e.y);
           Game.combo = Math.min(10, Game.combo+1); Game.comboTimer = 4;
         } else if (e.type==='pfand'){
-          // PFAND_TAG mutation doubles pfand value
-          const pfMul = (typeof Mutation !== 'undefined' && Mutation.pfandMul) ? Mutation.pfandMul() : 1;
-          Game.baseScore += 25 * pfMul;
+          // PFAND_TAG mutation doubles pfand value; TABAK flavor adds ×1.5
+          let pfMul = (typeof Mutation !== 'undefined' && Mutation.pfandMul) ? Mutation.pfandMul() : 1;
+          if (Vape.flavor === 'tabak' && Vape.flavorTimer > 0) pfMul *= 1.5;
+          Game.baseScore += Math.floor(25 * pfMul);
           Audio.pickup(); sparkle(e.x - Game.scrollX, e.y);
           Game.combo = Math.min(10, Game.combo+1); Game.comboTimer = 4;
           Save.data.pfandLifetime = (Save.data.pfandLifetime||0) + 1;
@@ -7889,6 +7946,17 @@ const HUD = {
     }
     if (this.popupT > 0) this.popupT -= dt;
     else this.popup = null;
+    // HEILIGER HAUCH — every Sigma popup grants +5 Aura while active.
+    // This caches the popup id so we credit only once per popup.
+    if (Vape.flavor === 'heiliger_hauch' && Vape.flavorTimer > 0 && this.popup && this.popup.kind === 'sigma'){
+      const key = 'S:' + this.popup.text;
+      if (this._lastSigmaCredited !== key){
+        this._lastSigmaCredited = key;
+        Krass.add(5, 'HEILIGER HAUCH-SEGEN');
+      }
+    } else if (!this.popup) {
+      this._lastSigmaCredited = null;
+    }
   },
   drawPopup(){
     if (!this.popup) return;
