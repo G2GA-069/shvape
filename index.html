@@ -43,6 +43,11 @@
   #muteBtn.muted .slash{display:block}
   #toneFail{position:fixed;bottom:8px;right:8px;background:rgba(0,0,0,0.7);color:#ff8;padding:6px 10px;font-size:10px;border:1px solid #555;display:none;z-index:10;font-family:'Press Start 2P',monospace}
   #toneFail.show{display:block}
+  #portraitHint{position:fixed;inset:0;background:#ffd633;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:50;text-align:center;padding:24px;gap:18px}
+  #portraitHint .rot{font-size:60px;animation:spin 1.6s ease-in-out infinite}
+  #portraitHint .big{font-family:Bangers,Impact,sans-serif;font-size:42px;color:#000;line-height:1.05}
+  #portraitHint .sub{font-size:13px;color:#000;line-height:1.45;font-family:'Press Start 2P',monospace}
+  @keyframes spin{0%,100%{transform:rotate(-90deg)}50%{transform:rotate(0)}}
   .noselect{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 </style>
 </head>
@@ -50,6 +55,11 @@
 <div id="wrap"><canvas id="game" width="1280" height="720" tabindex="0"></canvas></div>
 <div id="muteBtn" title="Stumm"><span style="position:relative;display:inline-block;line-height:1">💨<span class="slash"></span></span></div>
 <div id="toneFail">🔇 Stumm-Modus</div>
+<div id="portraitHint">
+  <div class="rot">📱</div>
+  <div class="big">Dreh dein Handy quer, Brudi!</div>
+  <div class="sub">SHVAPE läuft im Querformat.<br>Landscape = mehr Aura.</div>
+</div>
 <script>
 "use strict";
 /* =====================================================================
@@ -100,6 +110,35 @@ const SPRUCH_SUBJ = ["Dein Vater","Rudolf","Die Clique","Frau Müller","Mutti","
 const SPRUCH_VERB = ["weint.","lacht.","schämt sich.","hat's gesehen.","kläfft.","ist enttäuscht.","ruft die Polizei.","betet für dich.","schüttelt den Kopf.","postet's auf Insta.","schreibt 'L, Brudi'.","sagt 'Wahllah, cringe'.","ist hart lost.","raffelt's nicht.","wischt links.","screenshottet's.","kommentiert 'sus, digga'.","ist im Cope.","sagt nur 'Sheesh'.","postet's in die Familien-WhatsApp.","schickt ein 💀 in die Gruppe.","sagt 'Raff dich, Junge'.","gibt L."];
 const COMIC_SFX = ["BAM!","POW!","ZACK!","ALDA!","AUTSCH!","BONK!","AUA!","ALDA NEIN!","VOLLPFOSTEN!"];
 const NICKNAMES = ["BinRun69","TrickShotTobi","VapeLord420","Schmitti","Murat_KA","Justin04","ChantalXX","MarvinSucht","AldaEy","DampfKönig","Mutschelbach_Boy","RudShvape","BadenWürttemb3rg","Albtal_Drift","EBEKA_Stammkunde","FrauHertaHasst","Pfand_Sammler","Realschule_Reject","S11_Schwarzfahrer","ZeugnisOpfer"];
+// === SIGMA RULES + INSTA DMS — random parody pop-ups during play ===
+const SIGMA_RULES = [
+  "Sigma Rule #1: Echte Brudis weinen nicht.",
+  "Sigma Rule #7: Wahllah ist kein Witz.",
+  "Sigma Rule #12: Mid-Aura ist auch eine Aura.",
+  "Sigma Rule #21: Adiletten sind Sneaker.",
+  "Sigma Rule #34: Pfand ist Para.",
+  "Sigma Rule #42: Kehrwoche ist für Loser.",
+  "Sigma Rule #69: Nice.",
+  "Sigma Rule #88: Niemals 'Ja' zu Mama Schnittchen sagen.",
+  "Sigma Rule #99: Habibi vom Späti weiß alles.",
+  "Sigma Rule #137: Ein echter Sigma kennt seinen Zone-Tarif.",
+  "Sigma Rule #420: Das Vape ist die Seele.",
+];
+const INSTA_DMS = [
+  ['justin04',     'Bro.'],
+  ['justin04',     'Bro!!'],
+  ['marvin_ka',    'Hab dich grad gefilmt'],
+  ['marvin_ka',    'POV-Video kommt auf TikTok'],
+  ['chantal.xx',   'Kommst du heute Bushaltestelle?'],
+  ['chantal.xx',   'Lol so cringe das Video'],
+  ['murat.ka',     'Brudi, Pfand für dich gesammelt'],
+  ['ümit_2010',    'Spielst du noch S11?'],
+  ['frau_müller_offiziell', 'Bin Run: bitte zu mir ins Lehrerzimmer.'],
+  ['mama',         'Wo bist du?'],
+  ['mama',         'Hast du was gegessen?'],
+  ['rud_shvape',   '...'],
+];
+
 // === HYPER-LOCAL SIGN POOLS — split per zone ===
 const SIGNS_MUTSCHELBACH = [
   "Mutschelbach 2 km","TuS Mutschelbach 1908 e.V.","Schützenhaus","Kehrwoche Mittwoch 14:00",
@@ -179,11 +218,11 @@ let _lastZoneName = null;
 let _zoneBannerT = 0;
 
 const KRASS_TIERS = [
-  {min:0,   label:"BIEDER",     color:"#888",       mul:0.5, face:":("},
-  {min:25,  label:"OKAY",       color:"#eee",       mul:1.0, face:":|"},
-  {min:50,  label:"KRASS",      color:"#ffe14a",    mul:1.5, face:":D"},
-  {min:75,  label:"VOLL KRASS", color:"#ff8a1f",    mul:2.5, face:">:D"},
-  {min:95,  label:"LEGENDE",    color:"#ff66ff",    mul:4.0, face:"★_★"},
+  {min:0,   label:"NO AURA",    color:"#888",       mul:0.5, face:":("},
+  {min:25,  label:"MID AURA",   color:"#eee",       mul:1.0, face:":|"},
+  {min:50,  label:"AURA",       color:"#ffe14a",    mul:1.5, face:":D"},
+  {min:75,  label:"FETT AURA",  color:"#ff8a1f",    mul:2.5, face:">:D"},
+  {min:95,  label:"GIGACHAD",   color:"#ff66ff",    mul:4.0, face:"⚡_⚡"},
 ];
 
 // ===== UTIL =====
@@ -211,8 +250,16 @@ function resize(){
   const r = Math.min(window.innerWidth/CFG.W, window.innerHeight/CFG.H);
   canvas.style.width = (CFG.W*r)+'px';
   canvas.style.height = (CFG.H*r)+'px';
+  // Portrait hint on mobile — game is 16:9, prefers landscape
+  const portraitHint = document.getElementById('portraitHint');
+  if (portraitHint){
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const isMobile = ('ontouchstart' in window) && (navigator.maxTouchPoints > 0);
+    portraitHint.style.display = (isPortrait && isMobile) ? 'flex' : 'none';
+  }
 }
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', ()=>setTimeout(resize, 200));
 resize();
 
 // Detect mobile
@@ -313,17 +360,40 @@ let activePointers = {};
 canvas.addEventListener('pointerdown', e=>{
   e.preventDefault(); canvas.focus();
   const p = pointerToCanvas(e);
-  activePointers[e.pointerId] = {x:p.x,y:p.y,startX:p.x,startY:p.y,startT:performance.now()};
-  // double tap = vape
-  const now = performance.now();
-  if (now - Input.lastTap < 280) { Input.vapeBuffer = 0.15; }
-  Input.lastTap = now;
-  // right half = jump
-  if (p.x > CFG.W/2) {
+  // Persistent VAPE button bottom-left (single-tap, no double-tap needed)
+  const vbx = 180, vby = CFG.H - 200, vbr = 110;
+  const dvx = p.x - vbx, dvy = p.y - vby;
+  const onVape = (dvx*dvx + dvy*dvy) < (vbr*vbr);
+  // Persistent DUCK pill above JUMP
+  const dbx = (CFG.W - 200) - 30, dby = CFG.H - 90, dbw = 120, dbh = 56;
+  const onDuck = (p.x>=dbx && p.x<=dbx+dbw && p.y>=dby && p.y<=dby+dbh);
+  // Persistent JUMP big circle bottom-right
+  const jbx = CFG.W - 200, jby = CFG.H - 200, jbr = 140;
+  const dx = p.x - jbx, dy = p.y - jby;
+  const onJump = (dx*dx + dy*dy) < (jbr*jbr);
+
+  activePointers[e.pointerId] = {x:p.x,y:p.y,startX:p.x,startY:p.y,startT:performance.now(),
+    onVape, onJump, onDuck};
+
+  if (onVape){
+    Input.vapeBuffer = 0.15;
+    if (navigator.vibrate) navigator.vibrate(10);
+  } else {
+    // double-tap fallback for vape (anywhere on screen)
+    const now = performance.now();
+    if (now - Input.lastTap < 280) { Input.vapeBuffer = 0.15; if (navigator.vibrate) navigator.vibrate(10); }
+    Input.lastTap = now;
+  }
+  if (onDuck){
+    Input.duck = true;
+  }
+  // JUMP — explicit button press OR right-half-anywhere fallback
+  if (onJump || (!onVape && !onDuck && p.x > CFG.W/2)){
     Input.touchJump = true;
     Input.jumpBuffer = CFG.JUMP_BUFFER;
+    Input.pressed.jump = true;
+    if (navigator.vibrate) navigator.vibrate(8);
   }
-  // make sure audio context starts
   Audio.unlock();
 });
 canvas.addEventListener('pointermove', e=>{
@@ -335,20 +405,24 @@ canvas.addEventListener('pointerup', e=>{
   e.preventDefault();
   const ap = activePointers[e.pointerId];
   if (ap){
-    // swipe down = duck (briefly)
     const dy = ap.y - ap.startY;
-    if (dy > 80 && Math.abs(ap.x-ap.startX) < 80) { Input.duck = true; setTimeout(()=>Input.duck=false, 500); }
+    // swipe down = duck (briefly) — only if NOT on a button
+    if (dy > 80 && Math.abs(ap.x-ap.startX) < 80 && !ap.onJump && !ap.onVape){
+      Input.duck = true; setTimeout(()=>Input.duck=false, 500);
+    }
   }
   delete activePointers[e.pointerId];
-  // recompute jump/move state
-  let anyRight=false, anyLeftSide=null;
+  // recompute persistent button state
+  let anyJump=false, anyDuck=false;
   for (const id in activePointers){
     const p = activePointers[id];
-    if (p.x > CFG.W/2) anyRight = true;
-    else anyLeftSide = (p.x < CFG.W*0.25) ? -1 : (p.x > CFG.W*0.25 ? 1 : 0);
+    if (p.onJump) anyJump = true;
+    else if (p.x > CFG.W/2 && !p.onVape && !p.onDuck) anyJump = true;
+    if (p.onDuck) anyDuck = true;
   }
-  Input.touchJump = anyRight;
-  if (!anyRight) Input.keys.jump = false;
+  Input.touchJump = anyJump;
+  if (!anyJump) Input.keys.jump = false;
+  if (!anyDuck) Input.duck = false;
 });
 canvas.addEventListener('pointercancel', e=>{ delete activePointers[e.pointerId]; Input.touchJump=false; });
 
@@ -434,74 +508,78 @@ const Audio = {
       this.brass = new Tone.PolySynth(Tone.Synth, {oscillator:{type:'sawtooth'}, envelope:{attack:0.05,decay:0.2,sustain:0.4,release:0.1}}).connect(this.master);
       this.brass.volume.value = -16;
 
-      Tone.Transport.bpm.value = 156; // Tetris-pace, faster than vanilla chip
+      // === MULTI-TRACK MUSIC ENGINE — Pokémon Gameboy style ===
+      // Each track is a 32-step pattern { bpm, bass, lead, arp, snareOn, hatOn }.
+      // Drums use simple binary masks (which 16th-note steps fire).
+      // Track changes via Audio.setTrack(name); the loop callback reads
+      // this.currentTrack each tick for hot-swap, no gap.
+      this.TRACKS = makeTracks();
+      this.currentTrack = 'mutschelbach';
+      this.previousTrack = null;
+      this.step = 0;
 
-      // === BADNERLIED x TETRIS — 32-step 16th-note loop in D major ===
-      // Lead follows the Badnerlied melodic contour ("Das schoenste Land in
-      // Deutschlands Gauen, das ist mein Badnerland.") with rapid 16th-note
-      // ornamentation between the structural notes. Bass walks I-vi-IV-V.
-      // Arp is constant 16ths (Korobeiniki feel) — runs from the start, not
-      // gated behind a 60-sec timer like before.
-      const bassPattern = [
-        // Bar 1: D pedal | F#m pivot
-        'D2', null, 'A2', null,  'D2', null, 'F#2', null,
-        // Bar 2: Bm | A
-        'B2', null, 'F#2', null, 'A2', null, 'C#3', null,
-        // Bar 3: G | D
-        'G2', null, 'D3', null,  'G2', null, 'B2', null,
-        // Bar 4: A7 -> D resolve
-        'A2', null, 'C#3', null, 'A2', null, 'D2', 'D2',
-      ];
-      const leadPattern = [
-        // Badnerlied opening: "Das schoens-te Land in Deutsch-lands Gau-en"
-        'D5','F#5','A5','F#5',  'D6','A5','F#5','D5',
-        // "das ist mein Bad-ner-land" (descending phrase)
-        'A5','G5','F#5','E5',   'D5',null,'A4',null,
-        // "Es ist so herr-lich an-zu-schau-en"
-        'B4','D5','G5','B5',    'A5','G5','F#5','D5',
-        // "und ruht in Got-tes Hand"
-        'A4','C#5','E5','A5',   'F#5','E5','D5',null,
-      ];
-      const arpPattern = [
-        // Tetris-style ascending sweeps over the chord changes
-        'D4','F#4','A4','D5',   'F#4','A4','D5','F#5',
-        'B3','D4','F#4','B4',   'A3','C#4','E4','A4',
-        'G3','B3','D4','G4',    'D4','F#4','A4','D5',
-        'A3','C#4','E4','A4',   'D4','F#4','A4','D5',
-      ];
-      let step=0;
       this.loop = new Tone.Loop(time=>{
-        const i = step%32;
-        if (bassPattern[i]) this.bass.triggerAttackRelease(bassPattern[i], '16n', time);
-        if (leadPattern[i]) this.lead.triggerAttackRelease(leadPattern[i], '16n', time, 0.5);
-        // Arp from the start — the Tetris drive
-        if (arpPattern[i]) this.arp.triggerAttackRelease(arpPattern[i], '32n', time);
-        // Drums kick in at 30 sec (was 180 — too late to be catchy)
-        if (Game.realT > 30) {
-          if (i%8===4) this.snare.triggerAttackRelease('16n', time);
-          if (i%2===1) this.hat.triggerAttackRelease('32n', time);
+        const T = this.TRACKS[this.currentTrack];
+        if (!T) return;
+        // BPM follow each track
+        if (Tone.Transport.bpm.value !== T.bpm) Tone.Transport.bpm.rampTo(T.bpm, 0.1);
+        const i = this.step % 32;
+        if (T.bass[i]) this.bass.triggerAttackRelease(T.bass[i], '16n', time);
+        if (T.lead[i]) this.lead.triggerAttackRelease(T.lead[i], '16n', time, 0.5);
+        if (T.arp[i])  this.arp.triggerAttackRelease(T.arp[i], '32n', time);
+        if (T.snareOn && T.snareOn[i]) this.snare.triggerAttackRelease('16n', time);
+        if (T.hatOn   && T.hatOn[i])   this.hat.triggerAttackRelease('32n', time);
+        // GIGACHAD brass on bar 1+3
+        if (Krass.isLegende() && (i===0 || i===16)) {
+          const chord = T.brassChord || ['D4','F#4','A4'];
+          this.brass.triggerAttackRelease(chord, '8n', time, 0.4);
         }
-        // Detune at 8 min for the cursed late-game feel
-        if (Game.realT > 480) {
-          this.lead.detune.value = 5;
-        }
-        // LEGENDE brass triumph — D major triad on each loop start + bar 3
-        if (Krass.tier()===4 && (i===0 || i===16)) {
-          this.brass.triggerAttackRelease(['D4','F#4','A4'], '8n', time, 0.4);
-        }
-        step++;
+        // 8-min detune
+        if (Game.realT > 480) this.lead.detune.value = 5;
+        this.step++;
       }, '16n').start(0);
 
       Tone.Destination.mute = this.muted;
       Tone.Transport.start();
-
       this.ready = true;
     } catch(e){
       document.getElementById('toneFail').classList.add('show');
     }
   },
+
+  // Hot-swap to a named track. Resets the step counter so the new theme starts at bar 1.
+  setTrack(name){
+    if (!this.ready || this.currentTrack === name) return;
+    if (!this.TRACKS[name]) return;
+    this.previousTrack = this.currentTrack;
+    this.currentTrack = name;
+    this.step = 0;
+  },
+  // === SFX BANK ===
   jump(){ if(!this.ready||this.muted) return; try{this.sfx.triggerAttackRelease('A5','32n');}catch(e){} },
   pickup(){ if(!this.ready||this.muted) return; try{this.sfx.triggerAttackRelease('E5','32n'); setTimeout(()=>this.sfx.triggerAttackRelease('B5','32n'),60);}catch(e){} },
+  // Pokémon "item-found" jingle (Doh-Mi-Sol-Doh in eighth-notes)
+  itemFound(){ if(!this.ready||this.muted) return; try{
+    const seq = ['C5','E5','G5','C6']; for (let i=0;i<seq.length;i++) setTimeout(()=>this.sfx.triggerAttackRelease(seq[i], '16n'), i*90);
+  }catch(e){} },
+  // Pokémon-style victory fanfare on boss defeat
+  victory(){ if(!this.ready||this.muted) return; try{
+    const seq = [['C5','E5','G5'],['D5','F#5','A5'],['G5','B5','D6'],['C5','E5','G5','C6']];
+    const dur = ['8n','8n','8n','2n']; const delays = [0, 220, 440, 660];
+    for (let i=0;i<seq.length;i++) setTimeout(()=>this.brass.triggerAttackRelease(seq[i], dur[i], undefined, 0.6), delays[i]);
+  }catch(e){} },
+  // Brief "new area" ding when entering a zone (Pokemon route-change)
+  zoneEnter(){ if(!this.ready||this.muted) return; try{
+    setTimeout(()=>this.sfx.triggerAttackRelease('G5','16n'), 0);
+    setTimeout(()=>this.sfx.triggerAttackRelease('B5','16n'), 90);
+    setTimeout(()=>this.sfx.triggerAttackRelease('D6','8n'), 180);
+  }catch(e){} },
+  // Boss intro sting — descending hit
+  bossStart(){ if(!this.ready||this.muted) return; try{
+    setTimeout(()=>this.brass.triggerAttackRelease(['B4','D5','F5'], '16n', undefined, 0.6), 0);
+    setTimeout(()=>this.brass.triggerAttackRelease(['A4','C5','E5'], '16n', undefined, 0.6), 100);
+    setTimeout(()=>this.brass.triggerAttackRelease(['F4','A4','D5'], '8n', undefined, 0.6), 200);
+  }catch(e){} },
   hit(){ if(!this.ready||this.muted) return; try{this.sfx.triggerAttackRelease('A2','16n');}catch(e){} },
   cough(){ if(!this.ready||this.muted) return; try{this.snare.triggerAttackRelease('16n');}catch(e){} },
   vape(){ if(!this.ready||this.muted) return; try{this.hat.triggerAttackRelease('32n');}catch(e){} },
@@ -512,6 +590,213 @@ const Audio = {
   tierDown(){ if(!this.ready||this.muted) return; try{ this.sfx.triggerAttackRelease('G3','8n'); setTimeout(()=>this.sfx.triggerAttackRelease('E3','8n'),100); setTimeout(()=>this.sfx.triggerAttackRelease('C3','4n'),200); }catch(e){} },
   death(){ if(!this.ready||this.muted) return; try{ this.lead.triggerAttackRelease('A3','8n'); setTimeout(()=>this.lead.triggerAttackRelease('G3','8n'),140); setTimeout(()=>this.lead.triggerAttackRelease('F3','8n'),280); setTimeout(()=>this.lead.triggerAttackRelease('D3','4n'),420);}catch(e){} },
   shimmer(){ if(!this.ready||this.muted) return; try{this.arp.triggerAttackRelease('C7','64n'); setTimeout(()=>this.arp.triggerAttackRelease('E7','64n'),40);}catch(e){} },
+};
+
+// === ZONE + BOSS MUSIC TRACKS — chiptune patterns ===
+// Each is a 32-step 16th-note pattern. bass = triangle wave, lead = square,
+// arp = square (octave higher), snareOn/hatOn = which steps drum hits.
+// Patterns aim for a Pokémon-Gameboy lean: catchy hooks, area variety.
+function makeTracks(){
+  // helpers
+  const hatEvery = (n)=>{ const a=new Array(32).fill(false); for (let i=1;i<32;i+=n) a[i]=true; return a; };
+  const snareOn = (steps)=>{ const a=new Array(32).fill(false); for (const s of steps) a[s]=true; return a; };
+  // tracks
+  return {
+    // 1) MUTSCHELBACH — pastoral major-key village theme (D major, oompah)
+    mutschelbach: {
+      bpm: 142,
+      bass: [
+        'D2',null,'A2',null, 'D2',null,'A2',null,
+        'G2',null,'D3',null, 'G2',null,'B2',null,
+        'A2',null,'E3',null, 'A2',null,'C#3',null,
+        'D2',null,'A2',null, 'D2','A2','D2','D2',
+      ],
+      lead: [
+        'D5','F#5','A5','D6', 'A5','F#5','D5',null,
+        'B4','D5','G5','B5',  'G5','D5','B4',null,
+        'A4','C#5','E5','A5', 'E5','C#5','A4',null,
+        'F#5','E5','D5','A4', 'F#5','A5','D6',null,
+      ],
+      arp: [
+        'D4','F#4','A4','F#4', 'D4','F#4','A4','F#4',
+        'G3','B3','D4','B3',   'G3','B3','D4','B3',
+        'A3','C#4','E4','C#4', 'A3','C#4','E4','C#4',
+        'D4','F#4','A4','F#4', 'D4','F#4','A4','D5',
+      ],
+      snareOn: snareOn([4,12,20,28]),
+      hatOn:   hatEvery(2),
+      brassChord: ['D4','F#4','A4'],
+    },
+
+    // 2) LANGENSTEINBACH — multicultural mix; phrygian dominant flavour
+    //    over a steady rhythm (subtle nod to Anatolian/Balkan dorian-flat-2)
+    langensteinbach: {
+      bpm: 148,
+      bass: [
+        'A2',null,'A2','E3', 'A2',null,'A2','E3',
+        'F2',null,'F2','C3', 'F2',null,'F2','C3',
+        'G2',null,'G2','D3', 'G2',null,'G2','D3',
+        'A2',null,'A2','E3', 'A2','E3','A2','A2',
+      ],
+      lead: [
+        'A4','Bb4','C5','E5', 'D5','C5','Bb4','A4',
+        'F4','G4','A4','Bb4', 'C5','Bb4','A4','G4',
+        'A4','C5','E5','G5',  'F5','E5','D5','C5',
+        'Bb4','A4','G4','F4', 'E4',null,'A4',null,
+      ],
+      arp: [
+        'A3','C4','E4','C4', 'A3','C4','E4','C4',
+        'F3','A3','C4','A3', 'F3','A3','C4','A3',
+        'G3','Bb3','D4','Bb3','G3','Bb3','D4','Bb3',
+        'A3','C4','E4','C4', 'A3','E4','A4','E4',
+      ],
+      snareOn: snareOn([4,8,12,16,20,24,28]),
+      hatOn:   hatEvery(2),
+      brassChord: ['A3','C4','E4'],
+    },
+
+    // 3) ITTERSBACH — industrial minor key, syncopated (Bosch-Werk vibe)
+    ittersbach: {
+      bpm: 138,
+      bass: [
+        'E2',null,null,'E2', 'B2',null,'E2',null,
+        'E2',null,null,'E2', 'A2',null,'B2',null,
+        'D2',null,null,'D2', 'A2',null,'D2',null,
+        'B2',null,null,'B2', 'E2','B2','E2','E2',
+      ],
+      lead: [
+        'E4','G4','B4','G4', 'E4','G4','B4','E5',
+        'D4','F4','A4','F4', 'D4','F4','A4','D5',
+        'C4','E4','G4','E4', 'C4','E4','G4','C5',
+        'B3','D4','F#4','D4', 'E4',null,null,null,
+      ],
+      arp: [
+        'E3','G3','B3','G3', 'E3','G3','B3','E4',
+        'E3','G3','B3','G3', 'A3','C4','E4','C4',
+        'D3','F3','A3','F3', 'A3','C4','E4','C4',
+        'B2','D3','F#3','D3', 'E3','B3','E4','B3',
+      ],
+      snareOn: snareOn([2,6,10,14,18,22,26,30]),
+      hatOn:   hatEvery(1),
+      brassChord: ['E3','G3','B3'],
+    },
+
+    // 4) WALDBRONN — dreamy spa-resort theme, sparse, slow
+    waldbronn: {
+      bpm: 110,
+      bass: [
+        'F2',null,null,null,'C3',null,null,null,
+        'D2',null,null,null,'A2',null,null,null,
+        'Bb2',null,null,null,'F2',null,null,null,
+        'C3',null,null,null,'G2',null,'F2',null,
+      ],
+      lead: [
+        'F5',null,'A5',null, 'C6',null,'A5',null,
+        'G5',null,'A5',null, 'F5',null,'D5',null,
+        'F5',null,'D5',null, 'Bb4',null,'D5',null,
+        'C5',null,'E5',null, 'F5','E5','D5','C5',
+      ],
+      arp: [
+        'F4','A4','C5','A4', 'F4','A4','C5','A4',
+        'D4','F4','A4','F4', 'D4','F4','A4','F4',
+        'Bb3','D4','F4','D4', 'Bb3','D4','F4','D4',
+        'C4','E4','G4','E4', 'C4','E4','G4','C5',
+      ],
+      snareOn: snareOn([8,24]),
+      hatOn:   hatEvery(4),
+      brassChord: ['F4','A4','C5'],
+    },
+
+    // 5) ETTLINGEN — regal Schloss theme in C major, dotted rhythms
+    ettlingen: {
+      bpm: 140,
+      bass: [
+        'C2',null,'G2',null,'C2',null,'E3',null,
+        'F2',null,'C3',null,'F2',null,'A2',null,
+        'G2',null,'D3',null,'G2',null,'B2',null,
+        'C2',null,'G2',null,'C3','G2','C2','C2',
+      ],
+      lead: [
+        'C5','E5','G5','C6', 'B5','G5','E5','G5',
+        'A5','F5','C5','F5', 'A5','C6','F5','A5',
+        'B5','G5','D5','G5', 'B5','D6','G5','B5',
+        'C6','G5','E5','G5', 'C5','E5','G5','C6',
+      ],
+      arp: [
+        'C4','E4','G4','C5', 'C4','E4','G4','C5',
+        'F4','A4','C5','F5', 'F4','A4','C5','F5',
+        'G4','B4','D5','G5', 'G4','B4','D5','G5',
+        'C4','E4','G4','C5', 'E4','G4','C5','E5',
+      ],
+      snareOn: snareOn([4,12,20,28]),
+      hatOn:   hatEvery(2),
+      brassChord: ['C4','E4','G4'],
+    },
+
+    // 6) VÖLKERSBACH — Schwarzwald folk; modal A minor with cuckoo motif
+    voelkersbach: {
+      bpm: 124,
+      bass: [
+        'A2',null,'E3',null,'A2',null,'C3',null,
+        'D2',null,'A2',null,'D2',null,'F2',null,
+        'E2',null,'B2',null,'E2',null,'G2',null,
+        'A2',null,'E3',null,'A2','E3','A2','A2',
+      ],
+      lead: [
+        'A4','C5','E5','C5', 'A4','C5','E5','A5',
+        'D5','F5','A5','F5', 'D5','F5','A5','D6',
+        'E5','G5','B5','G5', 'E5','G5','B5','E6',
+        'A5','G5','F5','E5', 'D5','C5','B4','A4',
+      ],
+      arp: [
+        'A3','C4','E4','A4', 'C4','E4','A4','C5',
+        'D4','F4','A4','D5', 'F4','A4','D5','F5',
+        'E4','G4','B4','E5', 'G4','B4','E5','G5',
+        'A4','E4','C4','A3', 'E4','C4','A3','E3',
+      ],
+      snareOn: snareOn([6,14,22,30]),
+      hatOn:   hatEvery(4),
+      brassChord: ['A3','C4','E4'],
+    },
+
+    // 7) BOSS — Pokémon Gameboy battle theme in A minor, 160 BPM
+    //    Iconic descending intro hook + driving 16ths
+    boss: {
+      bpm: 162,
+      bass: [
+        'A2','A2','E3','A2', 'A2','A2','E3','A2',
+        'F2','F2','C3','F2', 'F2','F2','C3','F2',
+        'G2','G2','D3','G2', 'G2','G2','D3','G2',
+        'E2','E2','B2','E2', 'E2','E2','E3','E2',
+      ],
+      lead: [
+        // Descending battle hook
+        'A5','G5','F5','E5', 'A5','C6','E6','A5',
+        'F5','E5','D5','C5', 'F5','A5','C6','F5',
+        'G5','F5','E5','D5', 'G5','B5','D6','G5',
+        'E5','D5','C5','B4', 'A4','E5','A5','C6',
+      ],
+      arp: [
+        'A4','C5','E5','C5', 'A4','C5','E5','C5',
+        'F4','A4','C5','A4', 'F4','A4','C5','A4',
+        'G4','B4','D5','B4', 'G4','B4','D5','B4',
+        'E4','G4','B4','G4', 'E4','A4','C5','E5',
+      ],
+      snareOn: snareOn([2,6,10,14,18,22,26,30]),
+      hatOn:   hatEvery(1),
+      brassChord: ['A3','C4','E4'],
+    },
+  };
+}
+
+// Map currentZone() name → track key for Audio.setTrack
+const ZONE_TRACK = {
+  'MUTSCHELBACH': 'mutschelbach',
+  'KARLSBAD-LANGENSTEINBACH': 'langensteinbach',
+  'INDUSTRIEGEBIET ITTERSBACH': 'ittersbach',
+  'WALDBRONN — ALBTAL-THERME': 'waldbronn',
+  'ETTLINGEN — MARKTPLATZ': 'ettlingen',
+  'VÖLKERSBACH / SCHWARZWALD-RAND': 'voelkersbach',
 };
 
 
@@ -600,11 +885,11 @@ const Krass = {
     const old = this.v;
     this.v = clamp(this.v + amount, 0, 100);
     this.pulseT = 0.4;
-    if (amount > 0 && reason) HUD.note(`+${Math.floor(amount)} KRASSHEIT — ${reason}`, '#ff66ff');
+    if (amount > 0 && reason) HUD.note(`+${Math.floor(amount)} AURA — ${reason}`, '#ff66ff');
     const newTier = this.tier();
     const oldTier = KRASS_TIERS.findIndex((t,i)=> i===KRASS_TIERS.length-1 ? old>=t.min : (old>=t.min && old<KRASS_TIERS[i+1].min));
-    if (newTier > oldTier) { Audio.tierUp(); flash(KRASS_TIERS[newTier].color, 0.2); }
-    else if (newTier < oldTier) { Audio.tierDown(); flash('#444', 0.15); }
+    if (newTier > oldTier) { Audio.tierUp(); flash(KRASS_TIERS[newTier].color, 0.2); if (navigator.vibrate) navigator.vibrate([20,40,20]); }
+    else if (newTier < oldTier) { Audio.tierDown(); flash('#444', 0.15); if (navigator.vibrate) navigator.vibrate(80); }
     this.lastTier = newTier;
   },
   tier(){
@@ -795,6 +1080,7 @@ const Player = {
     Audio.hit();
     flash('#ff3030', 0.12);
     Game.combo = 1;
+    if (navigator.vibrate) navigator.vibrate([30,30,30]);
     HUD.note(`AUTSCH! ${reason||''}`, '#ff5050');
   },
   die(cause){
@@ -815,132 +1101,194 @@ const Player = {
 };
 
 // ===== DRAW BIN RUN =====
+// Bin Run "Wannabe-Drip" silhouette:
+//  - Slimmer body (~22% narrower than v1)
+//  - Black "Jogging-Anzug" (matching jacket + pants, white piping, 3 white stripes)
+//  - Gucci-style monogram cap (beige + dark-brown GG pattern, curved brim)
+//  - Gold chain on chest
+//  - White Adiletten + white socks (kept)
+//  - Decay stages: pink cheeks -> dark circles -> hunched -> ghostly white + black smoke
 function drawBinRun(x,y,t){
   const stage = Player.decayStage();
   const skin = stage===0 ? COLORS.skin : stage===1 ? COLORS.skinPale : stage>=2 ? COLORS.skinGhost : COLORS.skin;
   const cheek = stage===0 ? '#ff8a8a' : null;
   const isDuck = Player.ducking;
-  const runF = Math.sin(t*14);     // run cycle
+  const runF = Math.sin(t*14);
   const ground = Player.onGround;
   const py = isDuck ? y + 28 : y;
   const ph = isDuck ? Player.h-28 : Player.h;
+
+  // Slimmer geometry (was: legs 8-52 wide, body 4-60). New: legs 14-50, body 12-52.
+  const LEG_L_X = 14, LEG_R_X = 36, LEG_W = 14;
+  const BODY_X = 12,  BODY_W = 40;
+  const HEAD_X = 18,  HEAD_W = 28;
+
   ctx.save();
   ctx.translate(x, py);
-  // legende rainbow outline
   if (Krass.isLegende()){
     ctx.shadowColor = `hsl(${(t*200)%360},100%,60%)`;
     ctx.shadowBlur = 18;
   }
-  // Body silhouette outline pass
-  function path(){
-    ctx.beginPath();
-    // legs
-    if (ground && !isDuck){
-      const off = runF*8;
-      // left leg
-      ctx.rect(8, ph-32, 18, 32);
-      // right leg
-      ctx.rect(34, ph-32, 18, 32);
-    } else {
-      ctx.rect(8, ph-32, 18, 32);
-      ctx.rect(34, ph-32, 18, 32);
-    }
-  }
-  // Trackies (legs)
-  ctx.fillStyle = COLORS.trackies;
+
+  // ===== TRACKSUIT — PANTS =====
   const legBob = ground && !isDuck ? Math.abs(runF)*4 : 0;
-  // left leg
-  ctx.fillRect(10, ph-32+legBob, 16, 32-legBob);
-  ctx.fillRect(34, ph-32-legBob, 16, 32+legBob);
+  ctx.fillStyle = COLORS.hoodie; // black tracksuit pants
+  ctx.fillRect(LEG_L_X, ph-32+legBob, LEG_W, 32-legBob);
+  ctx.fillRect(LEG_R_X, ph-32-legBob, LEG_W, 32+legBob);
   ctx.strokeStyle='#000'; ctx.lineWidth=2;
-  ctx.strokeRect(10, ph-32+legBob, 16, 32-legBob);
-  ctx.strokeRect(34, ph-32-legBob, 16, 32+legBob);
-  // 3 white stripes
-  ctx.fillStyle = COLORS.stripe;
+  ctx.strokeRect(LEG_L_X, ph-32+legBob, LEG_W, 32-legBob);
+  ctx.strokeRect(LEG_R_X, ph-32-legBob, LEG_W, 32+legBob);
+  // 3 white stripes (now slimmer, but the Adidas reference holds)
+  ctx.fillStyle = '#fff';
   for (let i=0;i<3;i++){
-    ctx.fillRect(11, ph-30+legBob+i*6, 14, 2);
-    ctx.fillRect(35, ph-30-legBob+i*6, 14, 2);
+    ctx.fillRect(LEG_L_X+1, ph-30+legBob+i*6, 11, 2);
+    ctx.fillRect(LEG_R_X+1, ph-30-legBob+i*6, 11, 2);
   }
   // Adiletten + white socks
   ctx.fillStyle = '#fff';
-  ctx.fillRect(8, ph-4+legBob, 22, 6);
-  ctx.fillRect(32, ph-4-legBob, 22, 6);
+  ctx.fillRect(LEG_L_X-2, ph-4+legBob, 18, 6);
+  ctx.fillRect(LEG_R_X-2, ph-4-legBob, 18, 6);
   ctx.fillStyle = '#222';
-  ctx.fillRect(8, ph, 22, 4);
-  ctx.fillRect(32, ph, 22, 4);
-  ctx.strokeRect(8, ph-4+legBob, 22, 8);
-  ctx.strokeRect(32, ph-4-legBob, 22, 8);
-  // Hoodie body
+  ctx.fillRect(LEG_L_X-2, ph, 18, 4);
+  ctx.fillRect(LEG_R_X-2, ph, 18, 4);
+  ctx.strokeRect(LEG_L_X-2, ph-4+legBob, 18, 8);
+  ctx.strokeRect(LEG_R_X-2, ph-4-legBob, 18, 8);
+
+  // ===== TRACKSUIT — JACKET (top half) =====
   ctx.fillStyle = COLORS.hoodie;
-  ctx.fillRect(4, 20, 56, ph-50);
-  ctx.strokeRect(4, 20, 56, ph-50);
-  // hood (up if stage>=1)
-  if (stage>=1){
-    ctx.beginPath();
-    ctx.moveTo(2, 20); ctx.quadraticCurveTo(32, -10, 62, 20); ctx.lineTo(62, 32); ctx.lineTo(2, 32); ctx.closePath();
-    ctx.fillStyle = COLORS.hoodie; ctx.fill(); ctx.stroke();
-  }
-  // Head
-  const headY = stage>=2 ? 14 : 8; // hunched
+  ctx.fillRect(BODY_X, 20, BODY_W, ph-50);
+  ctx.strokeStyle='#000'; ctx.lineWidth=2;
+  ctx.strokeRect(BODY_X, 20, BODY_W, ph-50);
+  // White piping along the zipper line (center vertical)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(BODY_X + BODY_W/2 - 1, 22, 1, ph-54);
+  // Zipper pull (gold square at chest)
+  ctx.fillStyle = '#ffd633';
+  ctx.fillRect(BODY_X + BODY_W/2 - 2, 38, 4, 4);
+  ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.strokeRect(BODY_X + BODY_W/2 - 2, 38, 4, 4);
+  // Stand-up collar (white piping line at top)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(BODY_X+2, 20, BODY_W-4, 2);
+  // GOLD CHAIN — arcs across chest, with Cuban-link texture
+  ctx.strokeStyle = '#ffd633'; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.arc(BODY_X + BODY_W/2, 26, 12, 0.1*Math.PI, 0.9*Math.PI); ctx.stroke();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.arc(BODY_X + BODY_W/2, 26, 12, 0.1*Math.PI, 0.9*Math.PI); ctx.stroke();
+  // little dollar pendant
+  ctx.fillStyle = '#ffd633';
+  ctx.fillRect(BODY_X + BODY_W/2 - 2, 33, 4, 5);
+  ctx.strokeStyle='#000'; ctx.lineWidth=1; ctx.strokeRect(BODY_X + BODY_W/2 - 2, 33, 4, 5);
+  ctx.fillStyle='#000'; ctx.font='bold 5px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('€', BODY_X + BODY_W/2, 36);
+
+  // ===== HEAD =====
+  const headY = stage>=2 ? 14 : 8;
   ctx.fillStyle = skin;
-  ctx.fillRect(16, headY, 32, 24);
-  ctx.strokeRect(16, headY, 32, 24);
-  // hair (undercut)
-  ctx.fillStyle = COLORS.hair;
-  ctx.fillRect(16, headY, 32, 8);
-  ctx.strokeRect(16, headY, 32, 8);
+  ctx.fillRect(HEAD_X, headY, HEAD_W, 24);
+  ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.strokeRect(HEAD_X, headY, HEAD_W, 24);
   // dark circles stage 1+
   if (stage>=1){
     ctx.fillStyle = 'rgba(50,30,60,0.5)';
-    ctx.fillRect(20, headY+12, 6, 4);
-    ctx.fillRect(38, headY+12, 6, 4);
+    ctx.fillRect(HEAD_X+3, headY+12, 5, 4);
+    ctx.fillRect(HEAD_X+20, headY+12, 5, 4);
   }
   // eyes
   ctx.fillStyle = '#000';
-  ctx.fillRect(22, headY+11, 3, 3);
-  ctx.fillRect(40, headY+11, 3, 3);
-  // cheek
+  ctx.fillRect(HEAD_X+5, headY+11, 3, 3);
+  ctx.fillRect(HEAD_X+20, headY+11, 3, 3);
   if (cheek){
     ctx.fillStyle = cheek;
-    ctx.beginPath(); ctx.arc(20, headY+18, 2.2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(44, headY+18, 2.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(HEAD_X+3, headY+18, 2.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(HEAD_X+25, headY+18, 2.2, 0, Math.PI*2); ctx.fill();
   }
-  // mouth (slight smirk)
+  // smirk
   ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.moveTo(28, headY+19); ctx.lineTo(36, headY+19); ctx.stroke();
-  // AirPods (white dots in ears)
+  ctx.beginPath(); ctx.moveTo(HEAD_X+11, headY+19); ctx.lineTo(HEAD_X+18, headY+19); ctx.stroke();
+  // AirPods
   ctx.fillStyle='#fff';
-  ctx.beginPath(); ctx.arc(16, headY+15, 2.5, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(48, headY+15, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(HEAD_X-1, headY+15, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(HEAD_X+HEAD_W+1, headY+15, 2.5, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle='#000'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.arc(16, headY+15, 2.5, 0, Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(48, headY+15, 2.5, 0, Math.PI*2); ctx.stroke();
-  // Vape pen in hand (right)
+  ctx.beginPath(); ctx.arc(HEAD_X-1, headY+15, 2.5, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(HEAD_X+HEAD_W+1, headY+15, 2.5, 0, Math.PI*2); ctx.stroke();
+
+  // ===== GUCCI-MONOGRAM CAP =====
+  // Sits on top of head, slightly forward, brim curving forward.
+  // Beige body with dark-brown GG monogram pattern. Tiny gold trim along brim.
+  const capY = headY - 9;
+  // crown
+  ctx.fillStyle = '#c9b58f'; // beige base (canvas color)
+  ctx.fillRect(HEAD_X-1, capY, HEAD_W+2, 9);
+  // monogram pattern - subtle interlocking GG diamonds
+  ctx.fillStyle = '#7a5a32';
+  for (let mx = HEAD_X; mx < HEAD_X+HEAD_W; mx += 5){
+    for (let my = capY+1; my < capY+8; my += 4){
+      // tiny "G"-ish diamond + dot
+      ctx.fillRect(mx, my, 2, 2);
+      ctx.fillRect(mx+2, my+1, 1, 1);
+    }
+  }
+  // outline
+  ctx.strokeStyle='#000'; ctx.lineWidth=2;
+  ctx.strokeRect(HEAD_X-1, capY, HEAD_W+2, 9);
+  // gold trim line at brim attachment
+  ctx.strokeStyle = '#ffd633'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(HEAD_X-1, capY+9); ctx.lineTo(HEAD_X+HEAD_W+1, capY+9); ctx.stroke();
+  // brim — curves forward (over the eyes)
+  ctx.fillStyle = '#7a5a32'; // darker tan brim
+  ctx.beginPath();
+  ctx.moveTo(HEAD_X-2, capY+9);
+  ctx.lineTo(HEAD_X+HEAD_W+10, capY+10);
+  ctx.lineTo(HEAD_X+HEAD_W+10, capY+13);
+  ctx.lineTo(HEAD_X-2, capY+12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
+  // crown highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillRect(HEAD_X+1, capY+1, HEAD_W, 1);
+  // small "GG" emblem on the crown center (parodic, big enough to read)
+  ctx.fillStyle = '#3a2810';
+  ctx.font = 'bold 6px serif'; ctx.textAlign = 'center'; ctx.textBaseline='middle';
+  ctx.fillText('GG', HEAD_X+HEAD_W/2, capY+5);
+
+  // hair-tuft sticking out under cap (undercut shave above ear)
+  ctx.fillStyle = COLORS.hair;
+  ctx.fillRect(HEAD_X+HEAD_W-3, headY+1, 4, 4);
+
+  // ===== VAPE PEN IN HAND =====
   const handY = 36 + (ground?Math.sin(t*14)*3:0);
   ctx.fillStyle = '#222';
-  ctx.fillRect(56, handY, 14, 6);
-  ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(56, handY, 14, 6);
-  // LED heart on vape (pulsing)
+  ctx.fillRect(BODY_X+BODY_W-2, handY, 14, 6);
+  ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.strokeRect(BODY_X+BODY_W-2, handY, 14, 6);
+  // LED heart
   const pulse = 0.5 + 0.5*Math.sin(Vape.heartT * (Vape.v<25?12:6));
   const ledColor = Vape.v<25 ? `rgba(255,40,40,${0.5+pulse*0.5})` : `rgba(255,80,180,${0.5+pulse*0.5})`;
   ctx.fillStyle = ledColor;
-  drawHeart(60, handY+3, 2.5);
+  drawHeart(BODY_X+BODY_W+2, handY+3, 2.5);
+
   // ghost trembling stage 3
   if (stage>=3 && Math.random()<0.3){ ctx.translate(rand(-1,1), rand(-1,1)); }
-  // black smoke exhale
   if (stage>=3 && Math.random()<0.05){
     spawnParticle({x:Player.x+30, y:Player.y-8, vx:rand(-30,-80), vy:rand(-20,-5), size:rand(8,16), color:'rgba(20,20,30,0.7)', life:1.4, maxLife:1.4});
   }
+
+  // Drip-Check easter egg: rare cap glint sparkle while at FETT AURA+
+  if (Krass.tier()>=3 && Math.random() < 0.008){
+    ctx.fillStyle='rgba(255,255,255,0.95)';
+    ctx.beginPath(); ctx.arc(HEAD_X+HEAD_W/2+rand(-8,8), capY+rand(2,7), 1.5, 0, Math.PI*2); ctx.fill();
+  }
+
   ctx.restore();
 
-  // halftone dots over body for comic feel
+  // halftone dots over jacket
   ctx.save();
   ctx.beginPath();
-  ctx.rect(x+4, py+20, 56, ph-50);
+  ctx.rect(x+BODY_X, py+20, BODY_W, ph-50);
   ctx.clip();
-  ctx.fillStyle='rgba(255,255,255,0.08)';
-  for (let yy=20;yy<ph-30;yy+=6) for (let xx=6;xx<58;xx+=6){
-    ctx.beginPath(); ctx.arc(x+xx, py+yy, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  for (let yy=20;yy<ph-30;yy+=6) for (let xx=BODY_X+1;xx<BODY_X+BODY_W;xx+=6){
+    ctx.beginPath(); ctx.arc(x+xx, py+yy, 1.1, 0, Math.PI*2); ctx.fill();
   }
   ctx.restore();
 }
@@ -995,7 +1343,11 @@ const Bg = {
     // zone-change banner trigger
     const z = currentZone();
     if (_lastZoneName !== z.name) {
-      if (_lastZoneName !== null) { _zoneBannerT = 3.0; flash('#ffd633', 0.18); }
+      if (_lastZoneName !== null) {
+        _zoneBannerT = 3.0; flash('#ffd633', 0.18);
+        Audio.zoneEnter();
+        if (!Game.inBoss && ZONE_TRACK[z.name]) Audio.setTrack(ZONE_TRACK[z.name]);
+      }
       _lastZoneName = z.name;
     }
     if (_zoneBannerT > 0) _zoneBannerT -= dt;
@@ -1812,7 +2164,8 @@ function updateEntities(dt){
         if (e.type==='vape-pod'){
           Vape.refill(50); Game.baseScore += 50;
           comicBurst(e.x - Game.scrollX, e.y, 'POD!');
-          Audio.pickup(); sparkle(e.x - Game.scrollX, e.y);
+          Audio.itemFound(); sparkle(e.x - Game.scrollX, e.y);
+          if (navigator.vibrate) navigator.vibrate(20);
           Game.combo = Math.min(10, Game.combo+1); Game.comboTimer = 4;
           Vape.setFlavor(e.flavor);
           if (e.flavor==='mystery'){ HUD.note('Mystery Geschmack — Steuerung invertiert!', '#ff66ff'); }
@@ -1969,6 +2322,8 @@ const Boss = {
     HUD.note(`!! ${BOSS_NAMES[idx]} !!`, '#ff66ff');
     flash('#ff66ff', 0.3);
     shake(8);
+    Audio.bossStart();
+    Audio.setTrack('boss');
   },
   end(reward){
     if (!this.active) return;
@@ -1981,6 +2336,10 @@ const Boss = {
     Game.inBoss = false;
     Game.state = 'PLAY';
     Vape.refill(30);
+    Audio.victory();
+    // restore zone music after boss
+    const zname = currentZone().name;
+    if (ZONE_TRACK[zname]) Audio.setTrack(ZONE_TRACK[zname]);
   },
   update(dt){ if (this.active) this.active.update(dt); },
   draw(){ if (this.active) this.active.draw(); },
@@ -2037,7 +2396,7 @@ class B1_Zeugnis extends BossBase {
         if (Krass.isLegende()){
           // INVERSION: heal + krass
           Vape.refill(15);
-          Krass.add(500, `LEGENDE-INVERSION: ${p.grade}`);
+          Krass.add(500, `GIGACHAD-INVERSION: ${p.grade}`);
           comicBurst(p.x, p.y, 'NICE!');
           Audio.pickup();
         } else {
@@ -2118,7 +2477,7 @@ class B2_Clique extends BossBase {
       Vape.v = Math.max(0, Vape.v - 20);
       HUD.note('Chantal: "Lol Bin Run hart L, cringe"', '#ff66ff');
     } else if (Krass.isLegende()){
-      Krass.add(1500, 'LEGENDE: Wahllah Bin Run goes HART');
+      Krass.add(1500, 'GIGACHAD-EINTRITT: Wahllah Bin Run goes HART');
     }
   }
   spawnQ(){
@@ -2508,7 +2867,7 @@ class B7_Mutter extends BossBase {
     this.questions = ["Was ist das in deiner Tasche?","Wo warst du heute Nachmittag?","Hat dir das Justin gegeben?","Bin Run, schau mich an."];
     this.qi = 0;
     Krass.v = Krass.v * 0.5;
-    HUD.note('KRASSHEIT HALBIERT — Mama is da', '#ff66ff');
+    HUD.note('AURA HALBIERT — Mama is da, kein Rizz', '#ff66ff');
   }
   update(dt){
     super.update(dt);
@@ -2967,14 +3326,91 @@ function drawSpecialEntities(){
 // ===== HUD =====
 const HUD = {
   notes: [],
+  popup: null,           // current Sigma/DM popup
+  popupT: 0,             // remaining display time
+  nextPopupT: 25,        // seconds until next firing
   note(text, color){
     this.notes.push({text, color: color||'#fff', t:0, life:2.5});
+  },
+  firePopup(){
+    // 50/50 between Sigma rule and Insta DM
+    if (Math.random() < 0.5){
+      this.popup = {kind:'sigma', text: choice(SIGMA_RULES)};
+    } else {
+      const [user, msg] = choice(INSTA_DMS);
+      this.popup = {kind:'dm', user, msg};
+    }
+    this.popupT = 4.5;
   },
   update(dt){
     for (let i=this.notes.length-1;i>=0;i--){
       this.notes[i].t += dt;
       if (this.notes[i].t > this.notes[i].life) this.notes.splice(i,1);
     }
+    // Pop-up scheduling — only during play, never during boss/encounter/menu
+    if (Game.state==='PLAY' && !Game.inBoss && !Game.inEncounter){
+      this.nextPopupT -= dt;
+      if (this.nextPopupT <= 0){
+        this.firePopup();
+        this.nextPopupT = rand(35, 80);
+      }
+    }
+    if (this.popupT > 0) this.popupT -= dt;
+    else this.popup = null;
+  },
+  drawPopup(){
+    if (!this.popup) return;
+    const slide = this.popupT > 3.5 ? (4.5 - this.popupT) / 1 : (this.popupT < 0.6 ? this.popupT / 0.6 : 1);
+    const targetX = CFG.W - 360, restX = CFG.W + 20;
+    const x = lerp(restX, targetX, clamp(slide, 0, 1));
+    const y = 110;
+    ctx.save();
+    if (this.popup.kind === 'sigma'){
+      ctx.fillStyle = '#000'; ctx.fillRect(x-4, y-4, 348, 76);
+      ctx.fillStyle = '#ffd633'; ctx.fillRect(x, y, 340, 68);
+      ctx.fillStyle='#000'; ctx.font='bold 12px "Press Start 2P"'; ctx.textAlign='left';
+      ctx.fillText('SIGMA RULE', x+12, y+22);
+      ctx.font='9px "Press Start 2P"';
+      // Wrap text
+      const words = this.popup.text.split(' ');
+      let line='', ly = y+42;
+      for (const w of words){
+        const test = line + w + ' ';
+        if (ctx.measureText(test).width > 320){ ctx.fillText(line, x+12, ly); line = w+' '; ly += 13; }
+        else line = test;
+      }
+      if (line) ctx.fillText(line, x+12, ly);
+    } else {
+      // Insta DM
+      ctx.fillStyle = '#000'; ctx.fillRect(x-4, y-4, 348, 76);
+      ctx.fillStyle = '#fff'; ctx.fillRect(x, y, 340, 68);
+      // gradient pill (insta-purple/pink)
+      const g = ctx.createLinearGradient(x, y, x+340, y);
+      g.addColorStop(0, '#fdb74e'); g.addColorStop(0.5, '#e93077'); g.addColorStop(1, '#7a3eaa');
+      ctx.fillStyle = g; ctx.fillRect(x, y, 6, 68);
+      // avatar circle
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x+34, y+34, 18, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x+34, y+34, 14, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#000'; ctx.font='bold 16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(this.popup.user[0].toUpperCase(), x+34, y+34);
+      // text
+      ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+      ctx.fillStyle='#000'; ctx.font='bold 11px "Press Start 2P"';
+      ctx.fillText('@'+this.popup.user, x+62, y+24);
+      ctx.font='10px "Press Start 2P"'; ctx.fillStyle='#444';
+      ctx.fillText('jetzt', x+62, y+38);
+      ctx.font='10px "Press Start 2P"'; ctx.fillStyle='#000';
+      // Wrap msg
+      const words = this.popup.msg.split(' ');
+      let line='', ly = y+58;
+      for (const w of words){
+        const test = line + w + ' ';
+        if (ctx.measureText(test).width > 260){ ctx.fillText(line, x+62, ly); line = w+' '; ly += 13; }
+        else line = test;
+      }
+      if (line) ctx.fillText(line, x+62, ly);
+    }
+    ctx.restore();
   },
   draw(){
     // top-left: vape battery + LED heart
@@ -3020,7 +3456,7 @@ const HUD = {
       ctx.strokeText(cs, CFG.W-80, 88); ctx.fillText(cs, CFG.W-80, 88);
     }
 
-    // right side: Krassheit meter + tier label
+    // right side: Aura meter + tier label
     const kx = CFG.W - 60, ky = 120, kw = 36, kh = 360;
     const tier = Krass.tier();
     const tierData = KRASS_TIERS[tier];
@@ -3172,6 +3608,9 @@ const HUD = {
       ctx.restore();
     }
 
+    // Sigma rule / Insta DM pop-up
+    this.drawPopup();
+
     // Shvape Cam (TikTok overlay) easter egg
     if (Game.shvCam > 0){
       drawTikTokOverlay();
@@ -3232,8 +3671,8 @@ const Death = {
     ctx.fillStyle='#fff';
     ctx.strokeText(`Basis: ${this.baseScore}`, CFG.W/2, 380); ctx.fillText(`Basis: ${this.baseScore}`, CFG.W/2, 380);
     ctx.fillStyle='#ff66ff';
-    ctx.strokeText(`Krassheit-Bonus: +${this.krassBonus} (×${this.multiplier})`, CFG.W/2, 408);
-    ctx.fillText(`Krassheit-Bonus: +${this.krassBonus} (×${this.multiplier})`, CFG.W/2, 408);
+    ctx.strokeText(`Aura-Bonus: +${this.krassBonus} (×${this.multiplier})`, CFG.W/2, 408);
+    ctx.fillText(`Aura-Bonus: +${this.krassBonus} (×${this.multiplier})`, CFG.W/2, 408);
     ctx.fillStyle='#ffd633'; ctx.font='bold 28px Bangers, sans-serif';
     ctx.strokeText(`PUNKTE: ${this.totalScore}`, CFG.W/2, 448);
     ctx.fillText(`PUNKTE: ${this.totalScore}`, CFG.W/2, 448);
@@ -3513,7 +3952,7 @@ const Tutorial = {
     const panels = [
       {title:'SPRUNG',     icon:'jump',   text:'JUMP / SPACE\noder rechts antippen.\nHalten = höher.\nNach 30 Sek:\nDoppel-Sprung.'},
       {title:'VAPE',       icon:'vape',   text:'Akku läuft leer\n→ du erstickst.\nPods aufsammeln.\nPulsendes Herz =\n<25%, raff dich.'},
-      {title:'KRASSHEIT',  icon:'flame',  text:'Reckless = ×4 Punkte.\nBrav = ×0.5 (cringe).\nLEGENDE bei 95%+.\nNPCs starren dich an,\nBrass-Stab in der Musik.'},
+      {title:'AURA',       icon:'flame',  text:'Reckless = ×4 Punkte.\nBrav = ×0.5 (cringe).\nGIGACHAD bei 95%+.\nNPCs starren dich an,\nFanfare in der Musik.'},
       {title:'BOSSE',      icon:'face',   text:'7 Hauptbosse.\nZeugnis, Clique,\nLehrer, Polizei,\nVater, Schwarzwald,\nMutter (unbesiegbar).'},
     ];
 
@@ -3803,19 +4242,68 @@ function frame(now){
     Game.flash -= 1/60;
   }
 
-  // touch overlay (translucent zone hints)
-  if (IS_TOUCH && Game.state==='PLAY'){
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = '#fff';
+  // === MOBILE-FIRST TOUCH UI ===
+  // Persistent visible buttons during gameplay. Larger hit zones, clear icons.
+  if (IS_TOUCH && (Game.state==='PLAY'||Game.state==='BOSS'||Game.state==='ENCOUNTER')){
+    // very subtle zone tinting (helps proprioception without visual noise)
+    ctx.globalAlpha = 0.05; ctx.fillStyle = '#fff';
     ctx.fillRect(CFG.W/2, 0, CFG.W/2, CFG.H);
-    ctx.globalAlpha = 0.04;
-    ctx.fillStyle = '#7af';
+    ctx.globalAlpha = 0.03; ctx.fillStyle = '#7af';
     ctx.fillRect(0, 0, CFG.W/2, CFG.H);
     ctx.globalAlpha = 1;
+
+    // BIG persistent JUMP button bottom-right
+    const jbx = CFG.W - 200, jby = CFG.H - 200, jbr = 140;
+    const jPress = !!(Input.touchJump || Input.keys.jump);
+    ctx.save();
+    ctx.globalAlpha = jPress ? 0.55 : 0.32;
+    ctx.fillStyle = '#ff3030';
+    ctx.beginPath(); ctx.arc(jbx, jby, jbr, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 6; ctx.strokeStyle = '#000';
+    ctx.beginPath(); ctx.arc(jbx, jby, jbr, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 56px Bangers, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('JUMP', jbx, jby-6);
+    ctx.font='14px "Press Start 2P"'; ctx.fillText('↑', jbx, jby+34);
+    ctx.restore();
+
+    // VAPE button bottom-left (smaller circle)
+    const vbx = 180, vby = CFG.H - 200, vbr = 110;
+    const vPress = !!(Input.vapeBuffer > 0);
+    ctx.save();
+    ctx.globalAlpha = vPress ? 0.55 : 0.30;
+    ctx.fillStyle = '#ff66aa';
+    ctx.beginPath(); ctx.arc(vbx, vby, vbr, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 5; ctx.strokeStyle = '#000';
+    ctx.beginPath(); ctx.arc(vbx, vby, vbr, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 38px Bangers, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('VAPE', vbx, vby-2);
+    // tiny vape icon
+    ctx.fillStyle='#000'; ctx.fillRect(vbx-22, vby+30, 36, 8);
+    ctx.fillStyle='#ff66aa'; ctx.fillRect(vbx+10, vby+32, 4, 4);
+    ctx.restore();
+
+    // Small DUCK pill, top-right of jump button
+    const dbx = jbx - 30, dby = CFG.H - 90, dbw = 120, dbh = 56;
+    ctx.save();
+    ctx.globalAlpha = Input.duck ? 0.55 : 0.30;
+    ctx.fillStyle = '#88c0e0';
+    ctx.fillRect(dbx, dby, dbw, dbh);
+    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 4; ctx.strokeStyle = '#000';
+    ctx.strokeRect(dbx, dby, dbw, dbh);
+    ctx.fillStyle = '#fff'; ctx.font='bold 22px Bangers, sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('DUCK ↓', dbx + dbw/2, dby + dbh/2);
+    ctx.restore();
+
+    // brief on-boarding text first 6 sec
     if (Game.realT < 6){
-      ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.font='14px "Press Start 2P"'; ctx.textAlign='center';
-      ctx.fillText('LINKS = bewegen', CFG.W*0.25, CFG.H-40);
-      ctx.fillText('RECHTS = JUMP', CFG.W*0.75, CFG.H-40);
+      ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='12px "Press Start 2P"'; ctx.textAlign='center';
+      ctx.fillText('LINKS BEWEGEN  •  RECHTS JUMP  •  PINKE TASTE = VAPE', CFG.W/2, 100);
     }
   }
 
