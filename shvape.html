@@ -86,6 +86,13 @@ const Save = {
     lifetimePlayTime: 0,   // seconds across all runs
     bürgermeisterPosterDefaced: false,
     schwabeAntagonistChasing: 0, // remaining levels of recurring antagonist
+    achievements: {},      // {ACHIEVEMENT_ID: true} — unlocked set
+    insultsLifetime: 0,    // total insults landed across all runs
+    cringeFailsLifetime: 0,// total failed transgression QTEs
+    schwobaInsultedLifetime: 0,
+    bossesDefeatedLifetime: {}, // {0:n, 1:n, ...} per main boss
+    hosseiniVisits: 0,
+    actIIRunsLifetime: 0,
   },
   load(){
     try {
@@ -117,6 +124,8 @@ const Save = {
     if (la >= 10000)    grant('logo');
     if (la >= 100000)   grant('adiletten');
     if (la >= 1000000)  grant('vape');
+    // Achievement: 1M lifetime aura
+    if (la >= 1000000 && typeof Achv !== 'undefined') Achv.unlock('AURA_MILLIONAIR');
   },
   // Per-run starting Aura: max(30, achievement floor) + KSC win bonus.
   // KSC loss → starts at 0 with the special death Spruch in the pool.
@@ -203,6 +212,142 @@ const Save = {
         this.save();
       }).catch(()=>{});
     } catch(e){}
+  },
+};
+
+// ===== DAILY MUTATIONS =====
+// Every calendar day rolls a different parodic modifier so the game feels
+// fresh across the week. Hash YYYYMMDD into one of these slots. Active
+// mutation is shown as a HUD badge; effects are consulted at the relevant
+// call sites (Krass.add, Vape.drainRate, Insult.fire, etc.).
+const MUTATIONS = [
+  {id:'NORMAL',         name:'NORMALER TAG',        desc:'(nichts Besonderes)',           color:'#aaa'   },
+  {id:'SCHWOBA_TAG',    name:'SCHWOBA-TAG',         desc:'Württemberger × 2 Aura',        color:'#cc1818'},
+  {id:'VAPE_TROCKEN',   name:'VAPE-TROCKEN',        desc:'Drain × 1.5, Pods × 2',         color:'#88ccff'},
+  {id:'AURA_GIER',      name:'AURA-GIER',           desc:'Alle Aura-Beträge × 1.5',       color:'#ff66ff'},
+  {id:'STILLE',         name:'STILLE-BELEIDIGUNG',  desc:'Insults gratis, halbe Aura',    color:'#dddddd'},
+  {id:'KEHRWOCHE',      name:'KEHRWOCHE-TAG',       desc:'Frau Herta lauert',             color:'#5a8a5a'},
+  {id:'OPFER_TAG',      name:'OPFER-TAG',           desc:'Start mit Aura 0',              color:'#888'   },
+  {id:'SIGMA_TAG',      name:'SIGMA-TAG',           desc:'Start als WAHRER SIGMA',        color:'#ff66ff'},
+  {id:'STUTTGART_WIND', name:'STUTTGART-WIND',      desc:'Geschwindigkeit +25%',          color:'#ffaa30'},
+  {id:'PRESSE_TAG',     name:'PRESSE-TAG',          desc:'Jede Tat → BNN-Schlagzeile',    color:'#fff'   },
+  {id:'HABIBI_TAG',     name:'HABIBI-TAG',          desc:'Türkdeutsch dominiert',         color:'#ffd633'},
+  {id:'PFAND_TAG',      name:'PFAND-TAG',           desc:'Pfand-Werte verdoppelt',        color:'#7fff7f'},
+  {id:'KSC_GEDENKEN',   name:'KSC-GEDENKEN',        desc:'KSC-Niederlagen-Bonus',         color:'#0072c6'},
+];
+function todaysMutation(){
+  const seed = (typeof todaySeed === 'function') ? todaySeed() : new Date().toISOString().slice(0,10);
+  let h = 0;
+  for (let i=0;i<seed.length;i++) h = (h*131 + seed.charCodeAt(i))>>>0;
+  return MUTATIONS[h % MUTATIONS.length];
+}
+const Mutation = {
+  current: null,
+  init(){ this.current = todaysMutation(); },
+  is(id){ return this.current && this.current.id === id; },
+  // Convenience accessors
+  auraMul(){ return this.is('AURA_GIER') ? 1.5 : 1.0; },
+  vapeDrainMul(){ return this.is('VAPE_TROCKEN') ? 1.5 : 1.0; },
+  podMul(){ return this.is('VAPE_TROCKEN') ? 2 : 1; },
+  pfandMul(){ return this.is('PFAND_TAG') ? 2 : 1; },
+  speedMul(){ return this.is('STUTTGART_WIND') ? 1.25 : 1.0; },
+  insultVapeCost(){ return this.is('STILLE') ? 0 : 8; },
+  insultRewardMul(){ return this.is('STILLE') ? 0.5 : 1.0; },
+  schwobaMul(){ return this.is('SCHWOBA_TAG') ? 2.0 : 1.0; },
+  // HUD badge top-center
+  drawBadge(){
+    if (!this.current || this.current.id === 'NORMAL') return;
+    const m = this.current;
+    const w = 360, h = 32;
+    const x = (CFG.W - w)/2, y = 6;
+    ctx.save();
+    ctx.fillStyle = '#000'; ctx.fillRect(x-2, y-2, w+4, h+4);
+    ctx.fillStyle = m.color; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#000'; ctx.font='bold 11px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText(m.name + '  —  ' + m.desc, x + w/2, y + 21);
+    ctx.restore();
+  },
+};
+
+// ===== ACHIEVEMENTS =====
+// One-time unlocks tracked in Save. Each fires at a specific gameplay
+// moment via Achv.unlock(id). On unlock: pop confetti + queue popup.
+const ACHIEVEMENTS = {
+  ERSTE_BELEIDIGUNG:  {name:'Erste Beleidigung',     desc:'Erste B-Taste gedrückt.'                  },
+  ROAST_KETTE_5:      {name:'Roast-Kette ×5',        desc:'Fünf Insults am Stück.'                   },
+  ROAST_KETTE_10:     {name:'Roast-Maschine',        desc:'Zehn Insults am Stück.'                   },
+  WAHRER_SIGMA_FIRST: {name:'Wahrer Sigma',          desc:'Aura-Tier 4 erreicht.'                    },
+  AURA_MILLIONAIR:    {name:'Aura-Millionär',        desc:'1.000.000 Lifetime Aura.'                 },
+  POD_LORD:           {name:'Pod-Lord',              desc:'100 Pods gesammelt.'                      },
+  PFAND_MEISTER:      {name:'Pfand-Meister',         desc:'50 Pfandflaschen.'                        },
+  KSC_TREU:           {name:'KSC-Treu',              desc:'Trotz Niederlage gespielt.'               },
+  HOSSEINI_FREUND:    {name:'Hosseini-Freund',       desc:'Drei Familienbesuche.'                    },
+  BUERGER_DEFACED:    {name:'Bürger-Plakat-Künstler',desc:'Beier mit Vape ergänzt.'                  },
+  POLIZEI_VIP:        {name:'Polizei-VIP',           desc:'Fünf Streifen in einem Run.'              },
+  STEUER_BERUF:       {name:'Steuer-Beruf',          desc:'Frist gehalten.'                          },
+  SKAT_MEISTER:       {name:'Skat-Meister',          desc:'Tod im ersten Versuch besiegt.'           },
+  CASSETTE_DRAGER:    {name:'Cassette-Träger',       desc:'FÜR ZUHAUSE eingesammelt.'                },
+  BADNERLIED_HEARD:   {name:'Badnerlied gehört',     desc:'Mit Cassette das Ende erreicht.'          },
+  MIR_SIN_ALLE:       {name:'Mir sin alle Mutschelbacher', desc:'Act II beendet.'                    },
+  SCHWAPE_BLEIBT:     {name:'Schwape bleibt',        desc:'5 Minuten überlebt.'                      },
+  STILLE_MEISTER:     {name:'Stille-Meister',        desc:'Run ohne einen einzigen Insult.'          },
+  BIN_RUN_KNOWS:      {name:'Bin Run weiß',          desc:'Vierte Wand durchbrochen.'                },
+  INSULT_100:         {name:'Hundert Insults',       desc:'100 Insults Lifetime.'                    },
+  INSULT_1000:        {name:'Tausend Insults',       desc:'1.000 Insults Lifetime.'                  },
+  CRINGE_OPFER:       {name:'Cringe-Opfer',          desc:'10 Transgression-QTEs verhauen.'          },
+  SCHWOBA_GENERAL:    {name:'Schwoba-General',       desc:'10 Schwabe-Touristen beleidigt.'          },
+  SORRY_MAMA:         {name:'Sorry Mama',            desc:'Mama-Anruf einmal angenommen.'            },
+  HARDTSEE_VERTEIDIGT:{name:'Hardtsee verteidigt',   desc:'Hamburger-Hardtsee-Trick gelandet.'       },
+  VATIKAN_PARTNER:    {name:'Vatikan-Partner',       desc:'Pfarrer NFT verkauft.'                    },
+  HONEYCUTT_BILLIG:   {name:'Honeycutt Billig',      desc:'$400 akzeptiert (das Minimum).'           },
+  HONEYCUTT_VERKAUFT: {name:'Endgültig verkauft',    desc:'$400.000 akzeptiert.'                     },
+  AKHI_OG:            {name:'Akhi Original',         desc:'Run mit aktivem Habibi-Tag beendet.'      },
+};
+const Achv = {
+  popQueue: [],
+  current: null, t: 0,
+  unlock(id){
+    if (!ACHIEVEMENTS[id]) return;
+    if (Save.data.achievements[id]) return;
+    Save.data.achievements[id] = true;
+    Save.save();
+    this.popQueue.push(id);
+    if (Audio.brass) try{ Audio.brass.triggerAttackRelease(['G5','C6','E6'],'8n', undefined, 0.55);}catch(e){}
+    if (navigator.vibrate) navigator.vibrate([15,30,15]);
+  },
+  draw(){
+    if (!this.current && this.popQueue.length){
+      this.current = this.popQueue.shift();
+      this.t = 4.0;
+    }
+    if (!this.current) return;
+    this.t -= 1/60;
+    if (this.t <= 0){ this.current = null; return; }
+    const def = ACHIEVEMENTS[this.current];
+    const a = clamp(this.t/4.0, 0, 1);
+    const slide = a > 0.85 ? (1-a)/0.15 : (a < 0.2 ? a/0.2 : 1);
+    const w = 460, h = 78, cx = CFG.W/2, cy = 220;
+    ctx.save();
+    ctx.globalAlpha = slide;
+    ctx.fillStyle = '#000'; ctx.fillRect(cx-w/2-4, cy-h/2-4, w+8, h+8);
+    ctx.fillStyle = '#0a8a3a'; ctx.fillRect(cx-w/2, cy-h/2, w, h);
+    // halftone
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    for (let xx=-w/2;xx<w/2;xx+=14) { ctx.beginPath(); ctx.arc(cx+xx, cy, 3, 0, Math.PI*2); ctx.fill(); }
+    // medal
+    ctx.fillStyle = '#ffd633';
+    ctx.beginPath(); ctx.arc(cx-w/2+34, cy, 22, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000'; ctx.font='bold 16px "Press Start 2P"'; ctx.textAlign='center';
+    ctx.fillText('★', cx-w/2+34, cy+5);
+    // text
+    ctx.fillStyle='#fff'; ctx.font='bold 13px "Press Start 2P"'; ctx.textAlign='left';
+    ctx.fillText('ACHIEVEMENT FREIGESCHALTET', cx-w/2+72, cy-12);
+    ctx.font='bold 13px Bangers, sans-serif';
+    ctx.fillStyle='#ffd633';
+    ctx.fillText(def.name, cx-w/2+72, cy+6);
+    ctx.font='10px "Press Start 2P"'; ctx.fillStyle='#fff';
+    ctx.fillText(def.desc, cx-w/2+72, cy+22);
+    ctx.restore();
   },
 };
 
@@ -2004,6 +2149,10 @@ const Krass = {
   lastTier: 1,
   add(amount, reason){
     const old = this.v;
+    // Daily mutation: AURA-GIER multiplies BOTH gains and losses by 1.5.
+    if (typeof Mutation !== 'undefined' && Mutation.is && Mutation.is('AURA_GIER')){
+      amount *= 1.5;
+    }
     this.v = clamp(this.v + amount, 0, 100);
     this.pulseT = 0.4;
     if (amount > 0){
@@ -2013,7 +2162,12 @@ const Krass = {
     }
     const newTier = this.tier();
     const oldTier = KRASS_TIERS.findIndex((t,i)=> i===KRASS_TIERS.length-1 ? old>=t.min : (old>=t.min && old<KRASS_TIERS[i+1].min));
-    if (newTier > oldTier) { Audio.tierUp(); flash(KRASS_TIERS[newTier].color, 0.2); if (navigator.vibrate) navigator.vibrate([20,40,20]); }
+    if (newTier > oldTier) {
+      Audio.tierUp(); flash(KRASS_TIERS[newTier].color, 0.2);
+      if (navigator.vibrate) navigator.vibrate([20,40,20]);
+      // ACHIEVEMENT: first time hitting WAHRER SIGMA (tier 4)
+      if (newTier === 4 && typeof Achv !== 'undefined') Achv.unlock('WAHRER_SIGMA_FIRST');
+    }
     else if (newTier < oldTier) { Audio.tierDown(); flash('#444', 0.15); if (navigator.vibrate) navigator.vibrate(80); }
     this.lastTier = newTier;
   },
@@ -2051,6 +2205,8 @@ const Vape = {
     // SCHULSTRESS curse — drain 1.3× faster permanently (suspended briefly
     // after Mama call ANNEHMEN).
     if (Game.curses && Game.curses.schulstress && !(Game.cursesSuspendedT>0)) r *= 1.3;
+    // Daily mutation: VAPE-TROCKEN — drain × 1.5
+    if (typeof Mutation !== 'undefined' && Mutation.vapeDrainMul) r *= Mutation.vapeDrainMul();
     return r;
   },
   update(dt){
@@ -2212,9 +2368,11 @@ const Player = {
     const dir = insultLocked ? 0 : ((Input.keys.left || Input.touchLeft===-1) ? -1 : (Input.keys.right || Input.touchLeft===1) ? 1 : 0);
     let speedNudge = dir * 50;
     if (Vape.invertTimer > 0) speedNudge = -speedNudge;
-    Game.speed = clamp(Game.speed + (CFG.SPEED_RAMP*0.5)*dt + speedNudge*dt*4, CFG.BASE_SPEED, CFG.MAX_SPEED);
+    // Daily mutation STUTTGART_WIND raises the speed cap by 25%
+    const speedCap = CFG.MAX_SPEED * (typeof Mutation !== 'undefined' && Mutation.speedMul ? Mutation.speedMul() : 1.0);
+    Game.speed = clamp(Game.speed + (CFG.SPEED_RAMP*0.5)*dt + speedNudge*dt*4, CFG.BASE_SPEED, speedCap);
     // Auto ramp
-    Game.speed = Math.min(CFG.MAX_SPEED, Game.speed + CFG.SPEED_RAMP*dt);
+    Game.speed = Math.min(speedCap, Game.speed + CFG.SPEED_RAMP*dt);
     // Jump buffer + coyote
     Input.jumpBuffer = Math.max(0, Input.jumpBuffer - dt);
     // TRIPLE-JUMP: third jump only available at tier MID(1) or higher.
@@ -4065,7 +4223,9 @@ const Insult = {
       this.cd = 1.0;
       return false;
     }
-    Vape.v = Math.max(0, Vape.v - 8);
+    // Daily mutation STILLE: insults are free
+    const cost = (typeof Mutation !== 'undefined' && Mutation.insultVapeCost) ? Mutation.insultVapeCost() : 8;
+    Vape.v = Math.max(0, Vape.v - cost);
     this.lockT = 0.4;
     const tgt = this.findTarget();
     this.pendingTarget = tgt;
@@ -4108,11 +4268,27 @@ const Insult = {
           const tierMul = 1 + Krass.tier()*0.25;
           const chainMul = 1 + this.chain * 0.4;
           const base = 60;
-          const reward = Math.floor(base * regMul * wMul * tierMul * chainMul);
+          // Daily mutation: SCHWOBA_TAG doubles aura on schwoba targets
+          let mutMul = (typeof Mutation !== 'undefined' && Mutation.insultRewardMul) ? Mutation.insultRewardMul() : 1.0;
+          if (regional === 'schwoba' && Mutation && Mutation.schwobaMul) mutMul *= Mutation.schwobaMul();
+          const reward = Math.floor(base * regMul * wMul * tierMul * chainMul * mutMul);
           Krass.add(reward, `INSULT (${this.pendingTarget.kind})`);
           Game.transgressionAuraTotal += reward;
           Game.transgressionsCount++;
           Game.transgressionRevenue += Math.floor(reward * 0.05);
+          // Lifetime + per-region trackers
+          Save.data.insultsLifetime = (Save.data.insultsLifetime||0) + 1;
+          if (regional === 'schwoba') Save.data.schwobaInsultedLifetime = (Save.data.schwobaInsultedLifetime||0) + 1;
+          Save.save();
+          // Achievements
+          if (typeof Achv !== 'undefined'){
+            Achv.unlock('ERSTE_BELEIDIGUNG');
+            if (Save.data.insultsLifetime >= 100) Achv.unlock('INSULT_100');
+            if (Save.data.insultsLifetime >= 1000) Achv.unlock('INSULT_1000');
+            if (Save.data.schwobaInsultedLifetime >= 10) Achv.unlock('SCHWOBA_GENERAL');
+            if (this.chain + 1 >= 5) Achv.unlock('ROAST_KETTE_5');
+            if (this.chain + 1 >= 10) Achv.unlock('ROAST_KETTE_10');
+          }
           // INSULT pays its own Vape cost back when it lands.
           Vape.v = Math.min(100, Vape.v + 5);
           this.cd = 2.5;
@@ -4369,6 +4545,9 @@ class TransgressionEnc {
           Krass.add(-penalty, 'CRINGE — VERHAUEN');
           HUD.note('Voll cringe, Brudi. Du hast es VERSUCHT.', '#ff3030');
           flash('#ff3030', 0.2);
+          Save.data.cringeFailsLifetime = (Save.data.cringeFailsLifetime||0) + 1;
+          Save.save();
+          if (typeof Achv !== 'undefined' && Save.data.cringeFailsLifetime >= 10) Achv.unlock('CRINGE_OPFER');
         }
       }
     }
@@ -4412,7 +4591,9 @@ class TransgressionEnc {
 function applyTransgressionSideEffect(id){
   switch(id){
     case 'BÜRGERMEISTER_POSTER':
-      Save.data.bürgermeisterPosterDefaced = true; Save.save(); break;
+      Save.data.bürgermeisterPosterDefaced = true; Save.save();
+      if (typeof Achv !== 'undefined') Achv.unlock('BUERGER_DEFACED');
+      break;
     case 'POLIZEI_DISCOUNT':
       Game.curses.aktenzeichen = true; // forced on for the run
       Game.passatTimer = 30; // sooner
@@ -4421,7 +4602,15 @@ function applyTransgressionSideEffect(id){
       Game.rudolfPremiumDone = true; // locks Mama ANNEHMEN
       break;
     case 'PFARRER_NFT':
-      Save.unlockNpcDialogue('pfarrer_kornblum', 'der_vatikan_hat_angefragt'); break;
+      Save.unlockNpcDialogue('pfarrer_kornblum', 'der_vatikan_hat_angefragt');
+      if (typeof Achv !== 'undefined') Achv.unlock('VATIKAN_PARTNER');
+      break;
+    case 'PRIESTER_HAUCH':
+      if (typeof Achv !== 'undefined') Achv.unlock('VATIKAN_PARTNER');
+      break;
+    case 'HAMBURGER_HARDTSEE':
+      if (typeof Achv !== 'undefined') Achv.unlock('HARDTSEE_VERTEIDIGT');
+      break;
   }
 }
 
@@ -4476,6 +4665,7 @@ const BinRunKnows = {
       if ((Save.data.lifetimePlayTime||0) > 10*3600) lines.push(this.unlockedLine);
       Game.fourthWallText = lines[Math.floor(Math.random()*lines.length)];
       Audio.cough && Audio.cough();
+      if (typeof Achv !== 'undefined') Achv.unlock('BIN_RUN_KNOWS');
     }
   },
   draw(){
@@ -4810,6 +5000,7 @@ const MamaCall = {
     HUD.note('Mama-Energie: -30 AURA, +50 VAPE', '#ff66ff');
     Game.cursesSuspendedT = 60;
     Game.schwarzwaldSoft = true;
+    if (typeof Achv !== 'undefined') Achv.unlock('SORRY_MAMA');
     this.exitToPlay();
   },
   update(dt){
@@ -4971,6 +5162,9 @@ const Boss = {
     Audio.victory();
     // V2 — abilities/curses + lifetime achievement flags
     Save.markBoss(idx);
+    Save.data.bossesDefeatedLifetime = Save.data.bossesDefeatedLifetime || {};
+    Save.data.bossesDefeatedLifetime[idx] = (Save.data.bossesDefeatedLifetime[idx]||0) + 1;
+    Save.save();
     Progression.grantForBoss(idx);
     // After Boss 5 (Rudolf): trigger MAMA CALL phone overlay before B6.
     if (idx === 4){ MamaCall.open(); return; }
@@ -5951,6 +6145,7 @@ class B8_Finanzamt extends BossBase {
         HUD.note('CASSETTE: "FÜR ZUHAUSE"', '#ffd633');
         comicBurst(this.homelessX, CFG.GROUND_Y-100, 'FÜR ZUHAUSE');
         Audio.itemFound && Audio.itemFound();
+        if (typeof Achv !== 'undefined') Achv.unlock('CASSETTE_DRAGER');
       }
       if (this.homelessX > CFG.W + 200) this.homelessActive = false;
     }
@@ -5968,6 +6163,7 @@ class B8_Finanzamt extends BossBase {
       // Form prints out
       HUD.note('STEUER-ID LEBENSLANG: 47 829 314 110', '#ffd633');
       Game.baseScore += 25000;
+      if (!Game.finanzMultPenalty && typeof Achv !== 'undefined') Achv.unlock('STEUER_BERUF');
       // Move on to Boss 9
       Boss.active = null;
       Game.inBoss = false;
@@ -6175,6 +6371,7 @@ class B9_Tod extends BossBase {
             }
             if (this.endT > 4 && !this.done){
               this.done = true;
+              if (typeof Achv !== 'undefined' && (Game._b9FailsThisRun||0) === 0) Achv.unlock('SKAT_MEISTER');
               Boss.active = null; Game.inBoss = false; Audio.victory();
               Game.state = 'BOSS'; Game.inBoss = true;
               Boss.active = new B10_USA(9); Boss.active.init();
@@ -6189,6 +6386,7 @@ class B9_Tod extends BossBase {
             this.phase = 'reizen';
             this.lineT = 5;
             this.bidLine = '"Nochmal, Herr Shvape. Ich habe Zeit."';
+            Game._b9FailsThisRun = (Game._b9FailsThisRun||0) + 1;
           }
         }
       }
@@ -6384,6 +6582,11 @@ class B10_USA extends BossBase {
         // The button labeled ACCEPT is the only path forward.
         HUD.note(`SIGNIERT: $${this.acceptedAmount.toLocaleString('de-DE')}`, '#aaaaaa');
         flash('#fff', 0.6); shake(10);
+        // Achievements: cheapest accept vs maxed-out accept
+        if (typeof Achv !== 'undefined'){
+          if (this.acceptedAmount === 400) Achv.unlock('HONEYCUTT_BILLIG');
+          if (this.acceptedAmount === 400000) Achv.unlock('HONEYCUTT_VERKAUFT');
+        }
       } else {
         // REFUSE — phase escalates
         if (this.honeycuttIdx < this.honeycuttOffers.length-1){
@@ -6424,6 +6627,12 @@ class B10_USA extends BossBase {
     if (this.phaseT > 18 && (Input.pressed.jump || Input.pressed.vape || Input.touchJump)){
       this.done = true;
       Game.endingType = 'mir_sin_alle';
+      Save.data.actIIRunsLifetime = (Save.data.actIIRunsLifetime||0) + 1;
+      Save.save();
+      if (typeof Achv !== 'undefined'){
+        Achv.unlock('MIR_SIN_ALLE');
+        if (Game.cassette) Achv.unlock('BADNERLIED_HEARD');
+      }
       try{ Tone.Destination.mute = Audio.muted; }catch(e){}
       Boss.active = null; Game.inBoss = false;
       Game.state = 'SCHNITZEL_ENDING';
@@ -7322,6 +7531,9 @@ class E_HosseiniHaushalt extends EncBase {
       Krass.v = Math.max(this.savedKrass, 50);
       Game.chantalTrust = clamp(Game.chantalTrust + 15, 0, 100);
       HUD.note('AURA-BODEN +20 — Schwape-Adjazenz zur Hosseini-Familie', '#ffd633');
+      Save.data.hosseiniVisits = (Save.data.hosseiniVisits||0) + 1;
+      Save.save();
+      if (typeof Achv !== 'undefined' && Save.data.hosseiniVisits >= 3) Achv.unlock('HOSSEINI_FREUND');
       Encounter.end(1200);
     }
   }
@@ -7833,6 +8045,18 @@ const Death = {
     // generate spruch
     this.spruch = `${choice(SPRUCH_SUBJ)} ${choice(SPRUCH_VERB)}`;
     this.comicSfx = choice(COMIC_SFX);
+    // Run-end achievements: STILLE_MEISTER, KSC_TREU, AKHI_OG
+    if (typeof Achv !== 'undefined' && Game.realT >= 60){
+      if ((Save.data.insultsLifetime || 0) === Save._insultsAtRunStart && Game.realT >= 90){
+        Achv.unlock('STILLE_MEISTER');
+      }
+      if (Save.data.ksc && Save.data.ksc.last === 'loss'){
+        Achv.unlock('KSC_TREU');
+      }
+      if (Mutation && Mutation.is && Mutation.is('HABIBI_TAG')){
+        Achv.unlock('AKHI_OG');
+      }
+    }
     // score
     this.baseScore = Math.floor(Game.baseScore + Game.realT*10);
     this.multiplier = Krass.mul();
@@ -8388,6 +8612,11 @@ function resetForNewRun(){
   if (typeof Insult !== 'undefined') Insult.reset();
   if (Input){ Input.insultBuffer = 0; Input.touchInsult = false; }
   Game._insultEverFired = false;
+  Game._fiveMinUnlocked = false;
+  Game._b9FailsThisRun = 0;
+  Save._insultsAtRunStart = (Save.data.insultsLifetime || 0);
+  // Each new run also re-rolls today's mutation (if date rolled over)
+  if (typeof Mutation !== 'undefined' && Mutation.init) Mutation.init();
   Game.transgressionRevenue = 0;
   Game.transgressionAuraTotal = 0;
   Game.transgressionsCount = 0;
@@ -8400,6 +8629,11 @@ function resetForNewRun(){
   Game.auraLocked = false; Game.stepsT = 0;
   Player.reset();
   Krass.v = Save ? Save.startingAura() : 30; Krass.pulseT = 0;
+  // Daily mutation tier overrides at run start
+  if (typeof Mutation !== 'undefined' && Mutation.current){
+    if (Mutation.is('OPFER_TAG')) Krass.v = 0;
+    if (Mutation.is('SIGMA_TAG')) Krass.v = 95;
+  }
   Vape.v = 40; Vape.warned = false; Vape.podVoiceT = 0; Vape.flavor='erdbeer'; Vape.invertTimer=0;
   Boss.active = null; Encounter.active = null;
   Entities.length = 0; Particles.length = 0;
@@ -8442,9 +8676,12 @@ const EncDirector = {
     if (Game.encounterCooldown <= 0){
       // ~1-in-8 rolls Hosseini Haushalt (rare, only once per run);
       // otherwise uniform across the standard 5 encounters.
+      // KEHRWOCHE-Tag: bias toward 'herta' (40% chance instead of 20%).
       let k;
       if (!Game.hosseiniHaushaltDone && Math.random() < 0.125){
         k = 'hosseini';
+      } else if (typeof Mutation !== 'undefined' && Mutation.is('KEHRWOCHE') && Math.random() < 0.4){
+        k = 'herta';
       } else {
         k = choice(ENCOUNTER_KEYS);
       }
@@ -8557,6 +8794,11 @@ function frame(now){
       Save._lastSaveTick = Math.floor(Save.data.lifetimePlayTime);
       Save.save();
     }
+    // SCHWAPE_BLEIBT — 5 minutes survived in a single run
+    if (Game.realT >= 300 && !Game._fiveMinUnlocked){
+      Game._fiveMinUnlocked = true;
+      Achv.unlock('SCHWAPE_BLEIBT');
+    }
   }
 
   // ===== RENDER =====
@@ -8595,6 +8837,8 @@ function frame(now){
     Progression.drawHUD();
     Insult.drawHUD();
     HUD.draw();
+    Mutation.drawBadge();
+    Achv.draw();
     if (Game.state === 'MAMA_CALL') MamaCall.draw();
     BinRunKnows.draw();
     if (Game.state === 'DEATH') Death.draw();
@@ -8725,6 +8969,7 @@ function frame(now){
 // ===== INIT =====
 Save.load();
 Save.fetchKscIfStale();
+Mutation.init();
 loadBest();
 Bg.init();
 Menu.init();
