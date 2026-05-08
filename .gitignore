@@ -1,0 +1,15 @@
+# Build artifact (regenerated)
+SHVAPE.zip
+
+# Claude Code project state
+.claude/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Local server logs
+*.log

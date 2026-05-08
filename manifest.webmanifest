@@ -1,0 +1,16 @@
+{
+  "name": "SHVAPE — Ein Mutschelbach-Abenteuer",
+  "short_name": "SHVAPE",
+  "description": "Bin Run rennt durch Mutschelbach. Satire-Jump-and-Run im Browser.",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#7ec0ee",
+  "theme_color": "#ffd633",
+  "lang": "de-DE",
+  "icons": [
+    { "src": "favicon.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
