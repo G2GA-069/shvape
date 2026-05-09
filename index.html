@@ -1778,6 +1778,22 @@ let activePointers = {};
 canvas.addEventListener('pointerdown', e=>{
   e.preventDefault(); canvas.focus();
   const p = pointerToCanvas(e);
+  // === MOBILE PAUSE BUTTON (top-left) — tap to pause, tap-on-pause-
+  // overlay to resume. Only consume the event in PLAY/BOSS/ENCOUNTER.
+  if (IS_TOUCH){
+    const pbx = 12, pby = 12, pbw = 44, pbh = 44;
+    if (p.x >= pbx && p.x <= pbx+pbw && p.y >= pby && p.y <= pby+pbh){
+      if (Game.state === 'PLAY' || Game.state === 'BOSS' || Game.state === 'ENCOUNTER'){
+        togglePause();
+        return;
+      }
+    }
+    // Tap anywhere on the dim pause overlay = resume.
+    if (Game.paused){
+      togglePause();
+      return;
+    }
+  }
   // Persistent VAPE button bottom-left (single-tap, no double-tap needed)
   const vbx = 180, vby = CFG.H - 200, vbr = 110;
   const dvx = p.x - vbx, dvy = p.y - vby;
@@ -1856,7 +1872,18 @@ canvas.addEventListener('pointerup', e=>{
   if (!anyJump) Input.keys.jump = false;
   if (!anyDuck) Input.duck = false;
 });
-canvas.addEventListener('pointercancel', e=>{ delete activePointers[e.pointerId]; Input.touchJump=false; });
+canvas.addEventListener('pointercancel', e=>{
+  // System interrupt (incoming call / OS gesture). Drop the pointer AND
+  // clear all per-pointer touch flags, otherwise the insult button can
+  // remain "stuck pressed" after a phone-call interruption.
+  delete activePointers[e.pointerId];
+  Input.touchJump = false;
+  Input.touchInsult = false;
+  // Recompute duck flag from any survivors
+  let anyDuck = false;
+  for (const id in activePointers){ if (activePointers[id].onDuck) anyDuck = true; }
+  if (!anyDuck) Input.duck = false;
+});
 
 // Process touch into Input.keys each frame
 function updateTouchInput(){
@@ -9245,11 +9272,21 @@ const Death = {
     ctx.font='10px "Press Start 2P"';
     ctx.strokeText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
     ctx.fillText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
-    // Touch button
+    // Touch button row — NOCHMAL · VITRINE · TEILEN
     if (IS_TOUCH){
-      ctx.fillStyle='rgba(255,214,51,0.85)'; ctx.fillRect(CFG.W/2-120, 660, 240, 50);
-      ctx.fillStyle='#000'; ctx.font='14px "Press Start 2P"';
-      ctx.fillText('TIPPEN: NOCHMAL', CFG.W/2, 690);
+      const by = 660, bh = 50;
+      // NOCHMAL (yellow, primary action — wider)
+      ctx.fillStyle='rgba(255,214,51,0.92)'; ctx.fillRect(CFG.W/2-220, by, 200, bh);
+      ctx.fillStyle='#000'; ctx.font='bold 14px "Press Start 2P"';
+      ctx.fillText('NOCHMAL', CFG.W/2-120, by+30);
+      // VITRINE (green)
+      ctx.fillStyle='rgba(127,255,127,0.92)'; ctx.fillRect(CFG.W/2-10, by, 110, bh);
+      ctx.fillStyle='#000'; ctx.font='bold 11px "Press Start 2P"';
+      ctx.fillText('VITRINE', CFG.W/2+45, by+30);
+      // TEILEN (blue)
+      ctx.fillStyle='rgba(136,192,224,0.92)'; ctx.fillRect(CFG.W/2+110, by, 110, bh);
+      ctx.fillStyle='#000'; ctx.font='bold 11px "Press Start 2P"';
+      ctx.fillText('TEILEN', CFG.W/2+165, by+30);
     }
   },
   update(dt){
@@ -10112,6 +10149,19 @@ function frame(now){
       ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='12px "Press Start 2P"'; ctx.textAlign='center';
       ctx.fillText('LINKS BEWEGEN  •  RECHTS JUMP  •  PINKE TASTE = VAPE', CFG.W/2, 100);
     }
+
+    // === MOBILE PAUSE BUTTON ===
+    // Top-left corner of the canvas (the HTML mute button is top-right of
+    // the page). 44 × 44 hit zone, "II" glyph, dim until pressed.
+    const pbx = 12, pby = 12, pbw = 44, pbh = 44;
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#000'; ctx.fillRect(pbx, pby, pbw, pbh);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(pbx+12, pby+10, 6, 24);
+    ctx.fillRect(pbx+26, pby+10, 6, 24);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth=2; ctx.strokeRect(pbx, pby, pbw, pbh);
+    ctx.restore();
   }
 
   ctx.restore();
@@ -10164,11 +10214,38 @@ setInterval(()=>{
 }, 500);
 document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) kickFrame(); });
 
-// Mobile tap on death-screen restart button
+// Mobile tap on death-screen NOCHMAL / VITRINE / TEILEN button row.
+// Layout matches Death.draw at y 660-710:
+//   NOCHMAL   x: CFG.W/2-220 .. CFG.W/2-20  (200 wide)
+//   VITRINE   x: CFG.W/2-10  .. CFG.W/2+100 (110 wide)
+//   TEILEN    x: CFG.W/2+110 .. CFG.W/2+220 (110 wide)
 canvas.addEventListener('pointerdown', e=>{
   if (Game.state === 'DEATH' && IS_TOUCH){
     const p = pointerToCanvas(e);
-    if (p.y > 660 && p.y < 710 && Math.abs(p.x - CFG.W/2) < 120) restartGame();
+    if (Achv.vitrineOpen){
+      // While the vitrine is open, any tap closes it.
+      Achv.vitrineOpen = false;
+      return;
+    }
+    if (p.y > 660 && p.y < 710){
+      if (p.x >= CFG.W/2-220 && p.x <= CFG.W/2-20){ restartGame(); return; }
+      if (p.x >= CFG.W/2-10  && p.x <= CFG.W/2+100){ Achv.vitrineOpen = true; return; }
+      if (p.x >= CFG.W/2+110 && p.x <= CFG.W/2+220){
+        // Replicate the [T] keyboard share path: copy canvas as PNG.
+        try{
+          canvas.toBlob(b=>{
+            if (b && navigator.clipboard && navigator.clipboard.write){
+              navigator.clipboard.write([new ClipboardItem({'image/png': b})]).then(()=>{
+                HUD.note('Bild in Zwischenablage kopiert!', '#ffd633');
+              }).catch(()=>{ HUD.note('Teilen nicht verfügbar', '#aaa'); });
+            } else {
+              HUD.note('Teilen nicht verfügbar', '#aaa');
+            }
+          });
+        } catch(err){ HUD.note('Teilen nicht verfügbar', '#aaa'); }
+        return;
+      }
+    }
   }
   if (Game.state === 'ENDING' && IS_TOUCH){
     if (Ending.t > 12) restartGame();

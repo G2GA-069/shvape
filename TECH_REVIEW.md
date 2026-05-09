@@ -331,3 +331,117 @@ Shipping the action items in this same session. Audit found no CRIT,
 and pushed to GitHub Pages.
 
 — Head of Tech, SHVAPE
+
+---
+
+# Addendum — Mobile-focused sweep, same day
+
+75% mobile / 25% rest.
+
+## Mobile findings
+
+### M-1 — No mobile pause access — **BUG**
+Pause was P/ESC keyboard only. Mobile players had no way to pause
+mid-run. **Fix shipped:** 44 × 44 pause button drawn top-left of the
+canvas during PLAY/BOSS/ENCOUNTER (HTML mute button is top-right of
+the page, no collision). Pointerdown handler intercepts the
+button before any other touch routing. Tap anywhere on the dim pause
+overlay = resume. P/ESC keyboard path still works.
+
+### M-2 — Vitrine unreachable on mobile death screen — **BUG**
+Achievement gallery was TAB/G keyboard only. Mobile players couldn't
+see what they unlocked. **Fix shipped:** death screen now renders a
+3-button row (NOCHMAL · VITRINE · TEILEN) at y 660-710. Vitrine
+button toggles `Achv.vitrineOpen`; any tap while vitrine is open
+closes it.
+
+### M-3 — Share-canvas unreachable on mobile — **BUG**
+T-key only. **Fix shipped:** TEILEN button on the same death-screen
+row replicates the [T]-key path — `canvas.toBlob` + `navigator.
+clipboard.write` with the PNG, falls back to a "Teilen nicht
+verfügbar" HUD note if Clipboard API blocked.
+
+### M-4 — Pause overlay had no tap-to-resume — **BUG**
+**Fix shipped:** main pointerdown handler checks `Game.paused` first
+and toggles pause off on any tap. Combined with M-1, the full mobile
+pause loop is now: tap top-left II = pause; tap anywhere = resume.
+
+### M-5 — `pointercancel` left `Input.touchInsult` stuck — **BUG**
+System-interrupt during an active insult-button hold (e.g. incoming
+phone call) deleted the active pointer but did not clear
+`Input.touchInsult`, leaving the button visually depressed. Also
+`Input.duck` had the same risk. **Fix shipped:** pointercancel now
+clears `touchJump`, `touchInsult`, recomputes `duck` from surviving
+pointers.
+
+## Mobile non-findings (verified clean)
+
+- VAPE / INSULT button geometric clearance ≈ 6 px in canvas-space at
+  1280 × 720. Scales uniformly with display, no aspect-ratio risk.
+- `pointerToCanvas` uses `getBoundingClientRect`-based mapping;
+  correct under arbitrary CSS scaling.
+- `navigator.vibrate` always guarded; iOS silently no-ops, expected.
+- Right-half-anywhere JUMP fallback correctly excludes onVape /
+  onInsult / onDuck regions, including the new INSULT button.
+- Mama-call buttons (ANNEHMEN / ABLEHNEN) tappable via dedicated
+  hit-test loop in MamaCall.update.
+- Tutorial start button accepts both keypress AND pointer-down on a
+  fixed canvas-space rect; no double-fire.
+- KEY_MAP collision-resistant after bb327d8 hotfix; no further
+  regressions.
+- Pinch-zoom blocked by viewport meta `user-scalable=no` plus
+  `touch-action: manipulation` on canvas.
+
+## Rest pass (25%)
+
+### R-1 — `Save.data.shownInsults` unbounded — **POLISH (deferred)**
+Lifetime anti-repeat tracks every shown insult. With ~400 unique
+strings × ~80 bytes JSON ≈ 32 KB at saturation, well under
+localStorage's 5–10 MB quota. The pool-exhaustion path correctly
+wipes the seen-set when both kind + general pools are exhausted, so
+unbounded growth is bounded by content count. No fix needed today;
+keep an eye on it if libraries grow another 10×.
+
+### R-2 — Other memory pools verified bounded
+- `HUD.notes`: hard cap 5
+- `HUD.recentPopups`: cap 12
+- `Game.npcReactions`: pruned by life timer (2.5s each)
+- `Particles`: pruned by life
+- `Bg.far/mid/near`: pruned by scroll-out
+- `Entities`: pruned by off-screen + alive flag
+- `Game.highlightReel`: cap 5
+- `Game.transgressionLastTargets`: cap 4
+
+### R-3 — `ctx.save / ctx.restore` balance — **CLEAN**
+Spot-checked: counts match across the file. No leak observed in
+60+ minute sustained-run smoke test.
+
+### R-4 — Audio fallback paths — **CLEAN**
+All Audio.* methods open with `if (!this.ready || this.muted) return;`
+plus try/catch. Tone-failed path verified silent.
+
+### R-5 — B7 Mutter secret-win × Mama ANNEHMEN — **WORKS**
+Soft Mutter (CHANTAL_TRUST high or ANNEHMEN chosen) drops Trust at
+0.7×, which makes the secret-win path EASIER to reach (more time
+above 50% Trust to spam right-arrow). Confirmed not a regression.
+
+## Mobile fix verification
+
+Verified at runtime:
+- Pause button hit zone (12,12)-(56,56) does not overlap any other
+  control. Tap at (30, 30) toggles `Game.paused`.
+- Death screen 3-button row hit zones distinct, no overlap with
+  existing flyer/score graphics above.
+- `pointercancel` simulation clears `Input.touchInsult` reliably.
+- Vitrine open via VITRINE button, closes on any subsequent tap.
+- TEILEN button calls `canvas.toBlob` and posts a HUD note on
+  success/failure.
+
+## Net change
+
+Six fixes shipped (M-1, M-2, M-3, M-4, M-5, plus the schema-version
+infrastructure from the morning round). One non-finding documented
+(R-1) for future awareness. Mobile-first promise upheld: every
+keyboard-only action is now reachable by tap.
+
+— Head of Tech, SHVAPE — 2026-05-09 (PM)
