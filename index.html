@@ -95,13 +95,36 @@ const Save = {
     hosseiniVisits: 0,
     actIIRunsLifetime: 0,
   },
+  // Schema version. Bump when adding load-bearing fields so future
+  // migrations have a hook. Loader is forward-compatible: an older save
+  // will get current defaults backstopped via deep-merge below.
+  SCHEMA_V: 2,
   load(){
     try {
       const raw = localStorage.getItem('shvape_save_v2');
-      if (raw){ const j = JSON.parse(raw); Object.assign(this.data, j); }
+      if (raw){
+        const j = JSON.parse(raw);
+        // Deep-merge so a partial saved object (e.g. cosmetics missing
+        // a newly-added key) doesn't replace the default with an
+        // incomplete shape. One level of nesting is all we use today.
+        for (const k in j){
+          const cur = this.data[k];
+          const incoming = j[k];
+          if (cur && typeof cur === 'object' && !Array.isArray(cur) &&
+              incoming && typeof incoming === 'object' && !Array.isArray(incoming)){
+            this.data[k] = Object.assign({}, cur, incoming);
+          } else {
+            this.data[k] = incoming;
+          }
+        }
+        // Migration shim — old saves had no _v field. Tag them now.
+        if (!this.data._v) this.data._v = 1;
+      }
       // legacy: read old lifetime aura key if present
       const la = localStorage.getItem('shvape_lifetime_aura');
       if (la && !raw){ this.data.lifetimeAura = Math.max(this.data.lifetimeAura, parseInt(la,10)||0); }
+      // Bump to current schema version after load
+      this.data._v = this.SCHEMA_V;
     } catch(e){}
     // recompute cosmetic unlocks from lifetime aura on every load
     this.recomputeCosmetics();
@@ -703,7 +726,7 @@ const SIGMA_RULES = [
   "Sigma Rule #1908: KSC ist das einzig wahre Heimspiel.",
   "Sigma Rule #1952: Heimatkennzeichen sind nur ein Wort.",
   "Mer schwätzed Badisch, ned Schwobisch.",
-  "VfB-Fans dürfen ned in EBEKA.",
+  "VfB-Fans dürfen ned in PENNY.",
   "Wer 'Spätzle' säscht, isch ned vo do.",
   "Hardtsee gehört üs.",
   "Pforzheim isch nur en Wort für 'weit weg'.",
@@ -7140,8 +7163,14 @@ class B8_Finanzamt extends BossBase {
       Game.inBoss = false;
       Audio.victory();
       Game.state = 'PLAY';
-      // Brief 3-sec breath, then auto-trigger Tod
+      // Brief 3-sec breath, then auto-trigger Tod. GUARD: if the user
+      // dies, restarts, opens menu, or anything else changes state in
+      // the gap, the timer must NOT clobber that with a Tod spawn.
+      const guardT = Game.realT;
       setTimeout(()=>{
+        if (Game.state !== 'PLAY') return;
+        if (Boss.active) return;
+        if (Game.realT < guardT) return; // restartGame happened (realT reset)
         Game.state = 'BOSS'; Game.inBoss = true;
         Boss.active = new B9_Tod(8);
         Boss.active.init();
