@@ -173,7 +173,13 @@ const Save = {
   },
   markMutterBeaten(){ if (!this.data.mutterBeaten){ this.data.mutterBeaten = true; this.save(); } },
   pushMamaCall(choice){
-    this.data.mamaCallHistory.push(choice); this.save();
+    this.data.mamaCallHistory.push(choice);
+    // Cap at 200 entries — far more than any realistic player accumulates.
+    // Achievement thresholds are 10, so the most recent N is what matters.
+    if (this.data.mamaCallHistory.length > 200){
+      this.data.mamaCallHistory.splice(0, this.data.mamaCallHistory.length - 200);
+    }
+    this.save();
   },
   countMama(choice){
     return this.data.mamaCallHistory.filter(c=>c===choice).length;
@@ -1817,17 +1823,29 @@ canvas.addEventListener('pointerdown', e=>{
   if (onInsult){
     Input.insultBuffer = 0.15;
     Input.touchInsult = true;
+    // CRITICAL: also set Input.pressed.insult so any code that polls
+    // pressed.insult (boss "press [B] to confirm" gates) fires on touch.
+    Input.pressed.insult = true;
     if (navigator.vibrate) navigator.vibrate(12);
     Audio.unlock();
     return;
   }
   if (onVape){
     Input.vapeBuffer = 0.15;
+    // CRITICAL (2026-05-12 mobile-blocker fix): mirror to pressed.vape
+    // so any code polling Input.pressed.vape (TransgressionEnc QTE,
+    // Honeycutt confirm, Boss 3 tap-rhythm, etc.) fires on touch. The
+    // omission caused all those gates to be silently broken on mobile.
+    Input.pressed.vape = true;
     if (navigator.vibrate) navigator.vibrate(10);
   } else {
     // double-tap fallback for vape (anywhere on screen)
     const now = performance.now();
-    if (now - Input.lastTap < 280) { Input.vapeBuffer = 0.15; if (navigator.vibrate) navigator.vibrate(10); }
+    if (now - Input.lastTap < 280) {
+      Input.vapeBuffer = 0.15;
+      Input.pressed.vape = true;
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
     Input.lastTap = now;
   }
   if (onDuck){
@@ -5391,7 +5409,7 @@ const Insult = {
       ctx.fillStyle = '#000'; ctx.fillRect(CFG.W/2 - 240, 88, 480, 36);
       ctx.fillStyle = '#ff66aa'; ctx.fillRect(CFG.W/2 - 238, 90, 476, 32);
       ctx.fillStyle = '#fff'; ctx.font='bold 12px "Press Start 2P"'; ctx.textAlign='center';
-      ctx.fillText('💬 [B] / pinker Knopf — beleidige NPCs für Aura!', CFG.W/2, 112);
+      ctx.fillText(IS_TOUCH ? '💬 PINKER KNOPF — beleidige NPCs für Aura!' : '💬 [B] / pinker Knopf — beleidige NPCs für Aura!', CFG.W/2, 112);
       ctx.restore();
     }
   }
@@ -5556,7 +5574,7 @@ class TransgressionEnc {
     const cx = baseX + (Math.min(this.t,totalT)/totalT)*totalW;
     ctx.fillRect(cx-2, 174, 4, 20);
     ctx.font='9px "Press Start 2P"'; ctx.fillStyle='#fff';
-    ctx.fillText(`[V] when bar in green   |   ${this.witnesses} ZEUGEN`, CFG.W/2, 204);
+    ctx.fillText((IS_TOUCH ? 'GRÜNE TASTE wenn Balken grün' : '[V] wenn Balken grün') + `   |   ${this.witnesses} ZEUGEN`, CFG.W/2, 204);
     // Outcome banner
     if (this.outcome){
       const c = this.outcome==='success' ? '#7fff7f' : (this.outcome==='respect' ? '#88ccff' : '#ff3030');
@@ -6859,6 +6877,20 @@ class B7_Mutter extends BossBase {
       this.qi++;
     }
     let anyInput = false;
+    // MOBILE: synthesize pressed.left / pressed.right by tapping the
+    // big LÜGE / WAHRHEIT zones drawn in B7_Mutter.draw. Each frame
+    // checks fresh-down pointers (consumed flag prevents double-fire).
+    if (IS_TOUCH){
+      const by = CFG.GROUND_Y - 250, bh = 56;
+      const lx = 60, rx = CFG.W - 60 - 220;
+      for (const id in activePointers){
+        const p = activePointers[id];
+        if (p.consumed) continue;
+        if (p.y < by || p.y > by+bh) continue;
+        if (p.x >= lx && p.x <= lx+220){ Input.pressed.left = true;  p.consumed = true; }
+        else if (p.x >= rx && p.x <= rx+220){ Input.pressed.right = true; p.consumed = true; }
+      }
+    }
     if (Input.pressed.left)  { this.trust = Math.max(0, this.trust - this.trustDropL); HUD.note('Lüge erkannt.', '#ff3030'); anyInput = true; }
     if (Input.pressed.right) {
       this.trust = Math.max(0, this.trust - this.trustDropR);
@@ -6927,11 +6959,22 @@ class B7_Mutter extends BossBase {
     const tColor = this.trust > 50 ? '#7fff7f' : (this.trust>25 ? '#ffaa30' : '#ff3030');
     ctx.fillStyle=tColor; ctx.fillRect(30, 155, 260*(this.trust/100), 14);
     ctx.fillStyle='#fff'; ctx.font='8px "Press Start 2P"';
-    ctx.fillText('← Lügen   |   → Wahrheit', 30, 178);
+    ctx.fillText(IS_TOUCH ? 'TIPPE LÜGE oder WAHRHEIT unten' : '← Lügen   |   → Wahrheit', 30, 178);
     ctx.fillStyle='#fff'; ctx.font='9px "Press Start 2P"'; ctx.textAlign='center';
     ctx.strokeStyle='#000'; ctx.lineWidth=3;
     const s = `${Math.ceil(this.timer)} Sek...`;
     ctx.strokeText(s, CFG.W/2, 100); ctx.fillText(s, CFG.W/2, 100);
+    // === MOBILE TAP ZONES — LÜGE (left) / WAHRHEIT (right) ===
+    if (IS_TOUCH){
+      const by = CFG.GROUND_Y - 250, bh = 56;
+      const lx = 60, rx = CFG.W - 60 - 220, bw = 220;
+      ctx.fillStyle='rgba(204,24,24,0.85)'; ctx.fillRect(lx, by, bw, bh);
+      ctx.fillStyle='rgba(127,255,127,0.85)'; ctx.fillRect(rx, by, bw, bh);
+      ctx.strokeStyle='#000'; ctx.lineWidth=3; ctx.strokeRect(lx, by, bw, bh); ctx.strokeRect(rx, by, bw, bh);
+      ctx.fillStyle='#fff'; ctx.font='bold 18px "Press Start 2P"'; ctx.textAlign='center';
+      ctx.fillText('LÜGE',     lx+bw/2, by+bh/2+6);
+      ctx.fillText('WAHRHEIT', rx+bw/2, by+bh/2+6);
+    }
     // TRUE HONESTY pulse — single-frame white over the player. Imperceptible
     // unless watching for it.
     if (this.honestyPulseT > 0){
@@ -7595,9 +7638,28 @@ class B10_USA extends BossBase {
     }
   }
   updateHoneycutt(dt){
-    // Player toggles Refuse / Accept with ←/→. Confirm with V.
+    // Player toggles Refuse / Accept with ←/→. Confirm with V/SPACE.
     if (Input.pressed.left)  this.honeycuttSelected = 1;
     if (Input.pressed.right) this.honeycuttSelected = 0;
+    // MOBILE: direct tap on either button. Layout matches the draw call
+    // below — px/py/pw/ph mirror updateHoneycutt's render rect.
+    if (IS_TOUCH){
+      const px = CFG.W/2 - 280, py = 130, pw = 560, ph = 180;
+      const bw = 200, bh = 28, by = py + ph - 36;
+      const ax = CFG.W/2 - 220, rx = CFG.W/2 + 20;
+      for (const id in activePointers){
+        const p = activePointers[id];
+        if (p.consumed) continue;
+        if (p.y < by || p.y > by+bh) continue;
+        if (p.x >= ax && p.x <= ax+bw){
+          this.honeycuttSelected = 0; p.consumed = true;
+          Input.pressed.vape = true; // confirm in same frame
+        } else if (p.x >= rx && p.x <= rx+bw){
+          this.honeycuttSelected = 1; p.consumed = true;
+          Input.pressed.vape = true;
+        }
+      }
+    }
     if (Input.pressed.vape || Input.pressed.jump){
       if (this.honeycuttSelected === 0){
         // ACCEPT
@@ -7819,7 +7881,7 @@ class B10_USA extends BossBase {
       ctx.fillText('ACCEPT  →', ax+bw/2, by+bh/2+4);
       ctx.fillText('REFUSE  ←', rx+bw/2, by+bh/2+4);
       ctx.font='9px "Press Start 2P"'; ctx.fillStyle='#fff';
-      ctx.fillText('[V] / [SPACE] um zu bestätigen', CFG.W/2, by+bh+20);
+      ctx.fillText(IS_TOUCH ? 'TIPPE ACCEPT oder REFUSE oben' : '[V] / [SPACE] um zu bestätigen', CFG.W/2, by+bh+20);
     }
     // PHASE F — STEPS scene
     if (this.phase === 'steps' || this.phase === 'auraLocked' || this.phase === 'ending'){
@@ -8970,7 +9032,8 @@ const HUD = {
       ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.fillRect(0,0,CFG.W,CFG.H);
       ctx.fillStyle='#fff'; ctx.font='40px Bangers, sans-serif'; ctx.textAlign='center';
       ctx.fillText('PAUSE', CFG.W/2, CFG.H/2 - 80);
-      ctx.font='12px "Press Start 2P"'; ctx.fillText('drücke P zum Weitermachen', CFG.W/2, CFG.H/2-50);
+      ctx.font='12px "Press Start 2P"';
+      ctx.fillText(IS_TOUCH ? 'tippe zum Weitermachen' : 'drücke P zum Weitermachen', CFG.W/2, CFG.H/2-50);
       // Random tip — locks once when pause is opened, then sticks until resume
       if (!Game._pauseTip || Game._pauseTipResumeKey !== Game.realT){
         Game._pauseTip = choice(PAUSE_TIPS);
@@ -9267,11 +9330,15 @@ const Death = {
     this.drawGeschäftsbericht();
     // prompts
     ctx.fillStyle='#fff'; ctx.font='14px "Press Start 2P"'; ctx.textAlign='center';
-    ctx.strokeText('Nochmal? [LEERTASTE]', CFG.W/2, 610);
-    ctx.fillText('Nochmal? [LEERTASTE]', CFG.W/2, 610);
-    ctx.font='10px "Press Start 2P"';
-    ctx.strokeText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
-    ctx.fillText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
+    const restartLabel = IS_TOUCH ? 'Nochmal? TIPPE NOCHMAL UNTEN' : 'Nochmal? [LEERTASTE]';
+    ctx.strokeText(restartLabel, CFG.W/2, 610);
+    ctx.fillText(restartLabel, CFG.W/2, 610);
+    // Desktop-only key hints. Mobile already has tap buttons below.
+    if (!IS_TOUCH){
+      ctx.font='10px "Press Start 2P"';
+      ctx.strokeText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
+      ctx.fillText('[T] Teilen   [F] Respekt zollen   [TAB/G] Vitrine', CFG.W/2, 638);
+    }
     // Touch button row — NOCHMAL · VITRINE · TEILEN
     if (IS_TOUCH){
       const by = 660, bh = 50;
@@ -9552,7 +9619,7 @@ const Ending = {
       ctx.fillStyle='#ffd633'; ctx.font='14px "Press Start 2P"'; ctx.textAlign='center';
       ctx.fillText('Achievement: FREI', CFG.W/2, 320);
       ctx.fillStyle='#fff'; ctx.font='10px "Press Start 2P"';
-      ctx.fillText('Nochmal? [LEERTASTE]', CFG.W/2, 380);
+      ctx.fillText(IS_TOUCH ? 'Nochmal? TIPPEN' : 'Nochmal? [LEERTASTE]', CFG.W/2, 380);
     }
   }
 };
@@ -10190,14 +10257,62 @@ window.addEventListener('keydown', e=>{
   }
 });
 
-// rAF driver with watchdog — re-kicks on visibility change and via setInterval
-// in case the browser pauses rAF (hidden tab / iframe). Frame is idempotent
-// and uses lastT for delta calc so it's safe to drive from either source.
+// rAF driver with watchdog AND CRASH-PROOF wrapping.
+//
+// FREEZE-BUG ROOT CAUSE (fixed 2026-05-12): the original self-rescheduling
+// rAF callback was `now=>{ _rafScheduled=false; frame(now); kickFrame(); }`.
+// If frame() threw ANYWHERE in deep game state, kickFrame() never ran and
+// the entire render loop died permanently. The 500ms watchdog re-attempted
+// but threw on the same call path, leaving the player frozen on whatever
+// screen was last drawn. Player reports of "the game stops working" trace
+// exactly to this: late-game state transitions hit a code path that throws,
+// and the game appears bricked.
+//
+// Fix: wrap frame() in try/catch at both call sites. On error: log to
+// console, ensure rAF is always rescheduled, surface a "RESET — Tippe/Click"
+// HUD note so the player knows the game is alive and can poke past it.
 let _rafScheduled = false;
+let _frameErrCount = 0;
+let _lastFrameErrAt = 0;
+function _safeFrame(now){
+  try {
+    frame(now);
+  } catch(err){
+    _frameErrCount++;
+    const t = performance.now();
+    // Don't spam the console — one log per error burst.
+    if (t - _lastFrameErrAt > 1000){
+      try { console.error('SHVAPE frame error (recovered):', err); } catch(e){}
+      _lastFrameErrAt = t;
+      // Surface a tiny diagnostic in-game so power users notice.
+      try {
+        if (typeof HUD !== 'undefined' && HUD.note){
+          HUD.note('⚠ Aussetzer (weiter spielen)', '#ff8a30');
+        }
+      } catch(e){}
+    }
+    // If we're throwing in PLAY/BOSS/ENCOUNTER repeatedly, force-reset to
+    // the death screen so the player can restart cleanly rather than be
+    // stuck on a half-rendered corrupted frame.
+    if (_frameErrCount >= 10){
+      _frameErrCount = 0;
+      try {
+        if (typeof Game !== 'undefined' && Game.state !== 'DEATH' && Game.state !== 'TUTORIAL'){
+          Game.state = 'DEATH';
+          if (typeof Death !== 'undefined' && Death.start) Death.start();
+        }
+      } catch(e){}
+    }
+  }
+}
 function kickFrame(){
   if (_rafScheduled) return;
   _rafScheduled = true;
-  requestAnimationFrame(now=>{ _rafScheduled = false; frame(now); kickFrame(); });
+  requestAnimationFrame(now=>{
+    _rafScheduled = false;
+    _safeFrame(now);
+    kickFrame();           // ALWAYS reschedule, even on error
+  });
 }
 kickFrame();
 // Watchdog: if rAF hasn't fired for >250ms (hidden tab), force a step so
@@ -10207,8 +10322,8 @@ const _origFrame = frame;
 frame = function(now){ _lastFrameAt = performance.now(); _origFrame(now); };
 setInterval(()=>{
   if (performance.now() - _lastFrameAt > 250){
-    // tab was throttled. Step once with a clamped dt and re-kick rAF.
-    frame(performance.now());
+    // tab was throttled OR loop died. Step once defensively + re-kick rAF.
+    _safeFrame(performance.now());
     kickFrame();
   }
 }, 500);
