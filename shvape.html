@@ -528,7 +528,9 @@ const Achv = {
     const def = ACHIEVEMENTS[this.current];
     const a = clamp(this.t/4.0, 0, 1);
     const slide = a > 0.85 ? (1-a)/0.15 : (a < 0.2 ? a/0.2 : 1);
-    const w = 460, h = 78, cx = CFG.W/2, cy = 220;
+    // Y-stagger to avoid overlap with DripUnlock (y 160) and Progression
+    // ability/curse popup (y 240). Achievement sits BELOW both.
+    const w = 460, h = 78, cx = CFG.W/2, cy = 340;
     ctx.save();
     ctx.globalAlpha = slide;
     ctx.fillStyle = '#000'; ctx.fillRect(cx-w/2-4, cy-h/2-4, w+8, h+8);
@@ -7401,6 +7403,18 @@ class B9_Tod extends BossBase {
         if (Input.pressed.jump){
           this.binRunBid = Math.min(60, this.binRunBid + 2);
         }
+        // MOBILE: tap on the on-screen BESTÄTIGEN button. Hit-test matches
+        // the rect drawn in B9_Tod.draw below.
+        if (IS_TOUCH){
+          const bx = CFG.W - 280, by = 220, bw = 200, bh = 44;
+          for (const id in activePointers){
+            const p = activePointers[id];
+            if (p.consumed) continue;
+            if (p.x >= bx && p.x <= bx+bw && p.y >= by && p.y <= by+bh){
+              Input.pressed.right = true; p.consumed = true;
+            }
+          }
+        }
         if (Input.pressed.right){
           this.phase = 'spielen';
           this.lineT = 6;
@@ -7517,7 +7531,15 @@ class B9_Tod extends BossBase {
     ctx.fillText(`Bid: ${this.binRunBid}`, 40, 60);
     ctx.font='9px "Press Start 2P"';
     ctx.fillStyle = this.phase==='reizen' ? '#ffd633' : '#888';
-    ctx.fillText('JUMP = +2 reizen   |   →  bestätigen', 40, 80);
+    ctx.fillText(IS_TOUCH ? 'JUMP = +2 reizen   |   BESTÄTIGEN unten' : 'JUMP = +2 reizen   |   →  bestätigen', 40, 80);
+    // MOBILE — visible BESTÄTIGEN button so players know they can tap it.
+    if (IS_TOUCH && this.phase === 'reizen'){
+      const bx = CFG.W - 280, by = 220, bw = 200, bh = 44;
+      ctx.fillStyle='rgba(127,255,127,0.85)'; ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle='#000'; ctx.lineWidth=3; ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillStyle='#000'; ctx.font='bold 16px "Press Start 2P"'; ctx.textAlign='center';
+      ctx.fillText('BESTÄTIGEN', bx+bw/2, by+bh/2+6);
+    }
     ctx.fillStyle = '#bbcfff';
     ctx.fillText('[V + DOWN] = Cheat callen wenn Tod *etwas* tut', 40, 96);
     // Cheat indicator — visible only briefly
